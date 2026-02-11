@@ -57,10 +57,17 @@ type storeConfig struct {
 
 type tomlRoutingConfig struct {
 	Algorithm string
+	Spray     RoutingSprayConfig
 }
 
 type routingConfig struct {
 	Algorithm routing.AlgorithmEnum
+	Spray     RoutingSprayConfig
+}
+
+type RoutingSprayConfig struct {
+	Binary bool
+	Copies uint64
 }
 
 type ListenerConfig struct {
@@ -141,7 +148,10 @@ func parse(filename string) (config, error) {
 	if err != nil {
 		return config{}, NewConfigError("Error parsing routing Algorithm", err)
 	}
-	conf.Routing = routingConfig{Algorithm: algorithm}
+	conf.Routing = routingConfig{
+		Algorithm: algorithm,
+		Spray:     tomlConf.Routing.Spray,
+	}
 
 	// Parse listener configuration
 	for _, listener := range tomlConf.Listener {

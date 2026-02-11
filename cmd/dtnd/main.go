@@ -75,6 +75,8 @@ func startDtnd(conf config) (startupErrors error) {
 	switch conf.Routing.Algorithm {
 	case routing.AlgorithmEpidemic:
 		routingAlgorithm = routing.NewEpidemicRouting()
+	case routing.AlgorithmSprayAndWait:
+		routingAlgorithm = routing.NewSprayAndWait(conf.Routing.Spray.Copies, conf.Routing.Spray.Binary)
 	default:
 		err = NewStartupError(fmt.Sprintf("%v not valid routing algorithm", conf.Routing.Algorithm), nil)
 		startupErrors = errors.Join(startupErrors, err)

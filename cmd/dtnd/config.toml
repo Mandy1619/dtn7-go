@@ -6,7 +6,13 @@ path = "/tmp/dtn_store"
 
 # Specify routing algorithm
 [Routing]
+# One of  "epidemic", "spray"
 algorithm = "epidemic"
+
+# Config for spray routing
+# [routing.spray]
+# binary = false
+# copies = 10
 
 [Agents]
 [Agents.REST]

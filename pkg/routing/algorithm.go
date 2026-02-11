@@ -22,13 +22,16 @@ import (
 type AlgorithmEnum uint32
 
 const (
-	AlgorithmEpidemic AlgorithmEnum = 1
+	AlgorithmEpidemic     AlgorithmEnum = 1
+	AlgorithmSprayAndWait AlgorithmEnum = 2
 )
 
 func AlgorithmEnumFromString(name string) (AlgorithmEnum, error) {
 	switch name = strings.ToLower(name); name {
 	case "epidemic":
 		return AlgorithmEpidemic, nil
+	case "spray&wait":
+		return AlgorithmSprayAndWait, nil
 	default:
 		return 0, fmt.Errorf("%s is not a valid algorithm name", name)
 	}
