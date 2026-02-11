@@ -232,6 +232,7 @@ func (bst *BundleStore) insertNewBundleUnsafe(bundle *bpv7.Bundle) (*BundleDescr
 		Destination:            bundle.PrimaryBlock.Destination,
 		ReportTo:               bundle.PrimaryBlock.ReportTo,
 		IsAdministrativeRecord: bundle.IsAdministrativeRecord(),
+		miscellaneousData:      make(map[string]interface{}),
 		KnownHolders:           []bpv7.EndpointID{bst.nodeID},
 		Expires:                bundle.PrimaryBlock.CreationTimestamp.DtnTime().Time().Add(lifetimeDuration),
 		SerialisedFileName:     serialisedFileName,

@@ -17,6 +17,8 @@ type BundleMetadata struct {
 	Destination            bpv7.EndpointID
 	ReportTo               bpv7.EndpointID
 	IsAdministrativeRecord bool
+	// miscellaneousData is arbitrary additional data that components of dtnd want to associate with this bundle
+	miscellaneousData map[string]interface{}
 
 	// Bundle's ID in string-form. Used as the database primary-key. Return-value of ID.String()
 	IDString string `badgerhold:"key"`
@@ -39,9 +41,10 @@ type BundleMetadata struct {
 // while the other fields contain data that doesn't make sense to persist.
 type BundleDescriptor struct {
 	// metadata is all data which should be preserved to the database
-	metadata   BundleMetadata
-	stateMutex sync.RWMutex
+	metadata BundleMetadata
 
+	// stateMutex serialises access to struct fields
+	stateMutex sync.RWMutex
 	// retentionConstraints as defined by RFC9171 Section 5, see constraints.go for possible values
 	retentionConstraints []Constraint
 	// should this bundle be retained, i.e. protected from deletion
@@ -77,6 +80,25 @@ func (bd *BundleDescriptor) Metadata() (BundleMetadata, error) {
 	}
 
 	return bd.metadata, nil
+}
+
+// GetMiscData retrieves value from bundle's miscellaneous data
+func (bd *BundleDescriptor) GetMiscData(key string) (interface{}, bool) {
+	bd.stateMutex.RLock()
+	defer bd.stateMutex.RUnlock()
+
+	data, ok := bd.metadata.miscellaneousData[key]
+	return data, ok
+}
+
+// SetMiscData adds key-value pair to bundle's miscellaneous data
+func (bd *BundleDescriptor) SetMiscData(key string, value interface{}) error {
+	bd.stateMutex.Lock()
+	defer bd.stateMutex.Unlock()
+
+	bd.metadata.miscellaneousData[key] = value
+	err := GetStoreSingleton().updateBundleMetadata(bd.metadata)
+	return err
 }
 
 // Load loads the entire bundle from disk
