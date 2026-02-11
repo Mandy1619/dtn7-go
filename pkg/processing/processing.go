@@ -48,7 +48,8 @@ func forwardingAsync(bundleDescriptor *store.BundleDescriptor) {
 
 	// Step 2: determine if contraindicated - whatever that means
 	// Step 2.1: Call routing algorithm(?)
-	forwardToPeers, bundle := routing.GetAlgorithmSingleton().SelectPeersForForwarding(bundleDescriptor)
+	peers := cla.GetManagerSingleton().GetSenders()
+	forwardToPeers, bundle := routing.GetAlgorithmSingleton().SelectPeersForForwarding(bundleDescriptor, peers)
 
 	// Step 3: if contraindicated, call `contraindicateBundle`, and return
 	if len(forwardToPeers) == 0 {

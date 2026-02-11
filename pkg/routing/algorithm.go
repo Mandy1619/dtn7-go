@@ -22,7 +22,7 @@ import (
 type AlgorithmEnum uint32
 
 const (
-	AlgorithmEpidemic     AlgorithmEnum = 1
+	AlgorithmEpidemic AlgorithmEnum = 1
 )
 
 func AlgorithmEnumFromString(name string) (AlgorithmEnum, error) {
@@ -49,7 +49,7 @@ type Algorithm interface {
 	// dtnd will attempt to forward the bundle to all the selected peers.
 	// If the routing algorithm needs to make any modifications to the bundle, it should load the bundle, make modifications and then return the pointer.
 	// If the pointer is nil, then the processing pipeline will load the bundle from disk.
-	SelectPeersForForwarding(descriptor *store.BundleDescriptor) ([]cla.ConvergenceSender, *bpv7.Bundle)
+	SelectPeersForForwarding(descriptor *store.BundleDescriptor, peers []cla.ConvergenceSender) ([]cla.ConvergenceSender, *bpv7.Bundle)
 
 	// NotifyPeerAppeared notifies the Algorithm about a new peer.
 	NotifyPeerAppeared(peer bpv7.EndpointID)
@@ -85,9 +85,9 @@ func ShutdownAlgorithm() {
 	algorithmSingleton = nil
 }
 
-// filterCLAs filters the nodes which already received a Bundle.
+// filterPeers filters the nodes which already received a Bundle.
 // It returns a list of unused ConvergenceSenders.
-func filterCLAs(bundleDescriptor *store.BundleDescriptor, clas []cla.ConvergenceSender) (filtered []cla.ConvergenceSender) {
+func filterPeers(bundleDescriptor *store.BundleDescriptor, clas []cla.ConvergenceSender) (filtered []cla.ConvergenceSender) {
 	filtered = make([]cla.ConvergenceSender, 0, len(clas))
 
 	sentEids, err := bundleDescriptor.GetKnownHolders()
@@ -119,7 +119,7 @@ func filterCLAs(bundleDescriptor *store.BundleDescriptor, clas []cla.Convergence
 
 // getFilteredPeers returns a slice ov ConvergenceSenders which connect to nodes that are not known to already hold the bundle
 func getFilteredPeers(bundleDescriptor *store.BundleDescriptor) []cla.ConvergenceSender {
-	return filterCLAs(bundleDescriptor, cla.GetManagerSingleton().GetSenders())
+	return filterPeers(bundleDescriptor, cla.GetManagerSingleton().GetSenders())
 }
 
 // uniquePeers filters a list of ConvergenceSenders for uniqueness.

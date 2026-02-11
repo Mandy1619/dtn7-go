@@ -31,19 +31,15 @@ func (er *EpidemicRouting) NotifyNewBundle(_ *store.BundleDescriptor, _ *bpv7.Bu
 // NotifyReceivedBundle does nothing for this algorithm
 func (er *EpidemicRouting) NotifyReceivedBundle(_ *store.BundleDescriptor, _ *bpv7.Bundle) {}
 
-func (er *EpidemicRouting) SelectPeersForForwarding(descriptor *store.BundleDescriptor) ([]cla.ConvergenceSender, *bpv7.Bundle) {
-	peers := getFilteredPeers(descriptor)
+func (er *EpidemicRouting) SelectPeersForForwarding(descriptor *store.BundleDescriptor, peers []cla.ConvergenceSender) ([]cla.ConvergenceSender, *bpv7.Bundle) {
+	peers = filterPeers(descriptor, peers)
 	log.WithFields(log.Fields{
-		"bundle":        descriptor,
-		"new receivers": peers,
-	}).Debug("EpidemicRouting selected Convergence Senders for an outgoing bundle")
+		"bundle": descriptor,
+		"peers":  peers,
+	}).Debug("EpidemicRouting selected peers for outgoing bundle")
 	return peers, nil
 }
 
 func (_ *EpidemicRouting) NotifyPeerAppeared(_ bpv7.EndpointID) {}
 
 func (_ *EpidemicRouting) NotifyPeerDisappeared(_ bpv7.EndpointID) {}
-
-func (_ *EpidemicRouting) String() string {
-	return "epidemic"
-}
