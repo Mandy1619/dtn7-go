@@ -48,7 +48,7 @@ func forwardingAsync(bundleDescriptor *store.BundleDescriptor) {
 
 	// Step 2: determine if contraindicated - whatever that means
 	// Step 2.1: Call routing algorithm(?)
-	forwardToPeers := routing.GetAlgorithmSingleton().SelectPeersForForwarding(bundleDescriptor)
+	forwardToPeers, bundle := routing.GetAlgorithmSingleton().SelectPeersForForwarding(bundleDescriptor)
 
 	// Step 3: if contraindicated, call `contraindicateBundle`, and return
 	if len(forwardToPeers) == 0 {
@@ -56,15 +56,18 @@ func forwardingAsync(bundleDescriptor *store.BundleDescriptor) {
 		return
 	}
 
-	// Step 4:
-	bundle, err := bundleDescriptor.Load()
-	if err != nil {
-		log.WithFields(log.Fields{
-			"bundle": bundleDescriptor,
-			"error":  err,
-		}).Error("Error loading bundle from disk")
-		return
+	if bundle == nil {
+		bundle, err = bundleDescriptor.Load()
+		if err != nil {
+			log.WithFields(log.Fields{
+				"bundle": bundleDescriptor,
+				"error":  err,
+			}).Error("Error loading bundle from disk")
+			return
+		}
 	}
+
+	// Step 4:
 	// Step 4.1: remove previous node block
 	if prevNodeBlock, err := bundle.ExtensionBlockByType(bpv7.BlockTypePreviousNodeBlock); err == nil {
 		bundle.RemoveExtensionBlockByBlockNumber(prevNodeBlock.BlockNumber)

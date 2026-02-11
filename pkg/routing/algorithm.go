@@ -22,13 +22,13 @@ import (
 type AlgorithmEnum uint32
 
 const (
-	Epidemic AlgorithmEnum = 1
+	AlgorithmEpidemic     AlgorithmEnum = 1
 )
 
 func AlgorithmEnumFromString(name string) (AlgorithmEnum, error) {
 	switch name = strings.ToLower(name); name {
 	case "epidemic":
-		return Epidemic, nil
+		return AlgorithmEpidemic, nil
 	default:
 		return 0, fmt.Errorf("%s is not a valid algorithm name", name)
 	}
@@ -36,14 +36,20 @@ func AlgorithmEnumFromString(name string) (AlgorithmEnum, error) {
 
 // Algorithm is an interface to specify routing algorithms for delay-tolerant networks.
 type Algorithm interface {
-	// NotifyNewBundle notifies this Algorithm about new bundles. They
-	// might be generated at this node or received from a peer. Whether an
-	// algorithm acts on this information or ignores it, is an implementation matter.
-	NotifyNewBundle(descriptor *store.BundleDescriptor)
+	// NotifyNewBundle notifies an Algorithm about new bundles.
+	// Called when a new bundle was created on this node
+	// Whether an algorithm acts on this information or ignores it, is an implementation matter.
+	NotifyNewBundle(descriptor *store.BundleDescriptor, bundle *bpv7.Bundle)
+
+	// NotifyReceivedBundle notifies an Algorithm about a bundle received from another node
+	// Whether an algorithm acts on this information or ignores it, is an implementation matter.
+	NotifyReceivedBundle(descriptor *store.BundleDescriptor, bundle *bpv7.Bundle)
 
 	// SelectPeersForForwarding returns an array of ConvergenceSender for a requested bundle.
-	// The CLA selection is based on the algorithm's design.
-	SelectPeersForForwarding(descriptor *store.BundleDescriptor) (peers []cla.ConvergenceSender)
+	// dtnd will attempt to forward the bundle to all the selected peers.
+	// If the routing algorithm needs to make any modifications to the bundle, it should load the bundle, make modifications and then return the pointer.
+	// If the pointer is nil, then the processing pipeline will load the bundle from disk.
+	SelectPeersForForwarding(descriptor *store.BundleDescriptor) ([]cla.ConvergenceSender, *bpv7.Bundle)
 
 	// NotifyPeerAppeared notifies the Algorithm about a new peer.
 	NotifyPeerAppeared(peer bpv7.EndpointID)
@@ -109,4 +115,24 @@ func filterCLAs(bundleDescriptor *store.BundleDescriptor, clas []cla.Convergence
 	}
 
 	return
+}
+
+// getFilteredPeers returns a slice ov ConvergenceSenders which connect to nodes that are not known to already hold the bundle
+func getFilteredPeers(bundleDescriptor *store.BundleDescriptor) []cla.ConvergenceSender {
+	return filterCLAs(bundleDescriptor, cla.GetManagerSingleton().GetSenders())
+}
+
+// uniquePeers filters a list of ConvergenceSenders for uniqueness.
+// Sometimes you may have multiple CLAs which connect ot the same peer, and you may or may not want to send a bundle across all parallel links.
+func uniquePeers(peers []cla.ConvergenceSender) []cla.ConvergenceSender {
+	endpoints := make(map[bpv7.EndpointID]bool)
+	unique := make([]cla.ConvergenceSender, 0, len(peers))
+	for _, sender := range peers {
+		_, present := endpoints[sender.GetPeerEndpointID()]
+		if !present {
+			endpoints[sender.GetPeerEndpointID()] = true
+			unique = append(unique, sender)
+		}
+	}
+	return unique
 }

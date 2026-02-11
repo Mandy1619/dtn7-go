@@ -73,7 +73,7 @@ func startDtnd(conf config) (startupErrors error) {
 	// Setup routing
 	var routingAlgorithm routing.Algorithm = nil
 	switch conf.Routing.Algorithm {
-	case routing.Epidemic:
+	case routing.AlgorithmEpidemic:
 		routingAlgorithm = routing.NewEpidemicRouting()
 	default:
 		err = NewStartupError(fmt.Sprintf("%v not valid routing algorithm", conf.Routing.Algorithm), nil)
@@ -82,7 +82,7 @@ func startDtnd(conf config) (startupErrors error) {
 	routing.InitialiseAlgorithm(routingAlgorithm)
 
 	// Setup application agents
-	err = application_agent.InitialiseApplicationAgentManager(processing.ReceiveBundle)
+	err = application_agent.InitialiseApplicationAgentManager(processing.NewBundle)
 	if err != nil {
 		err = NewStartupError("Error initialising Application Agent Manager", err)
 		startupErrors = errors.Join(startupErrors, err)

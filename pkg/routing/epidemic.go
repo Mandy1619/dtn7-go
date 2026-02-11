@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2019, 2022 Markus Sommer
+// SPDX-FileCopyrightText: 2019, 2022, 2026 Markus Sommer
 // SPDX-FileCopyrightText: 2019, 2020 Alvar Penning
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
@@ -25,32 +25,19 @@ func NewEpidemicRouting() *EpidemicRouting {
 	return &EpidemicRouting{}
 }
 
-// NotifyNewBundle tells the EpidemicRouting about new bundles.
-//
-// In our case, the PreviousNodeBlock will be inspected.
-func (er *EpidemicRouting) NotifyNewBundle(_ *store.BundleDescriptor) {}
+// NotifyNewBundle does nothing for this algorithm
+func (er *EpidemicRouting) NotifyNewBundle(_ *store.BundleDescriptor, _ *bpv7.Bundle) {}
 
-func (er *EpidemicRouting) SelectPeersForForwarding(bp *store.BundleDescriptor) (css []cla.ConvergenceSender) {
-	css = filterCLAs(bp, cla.GetManagerSingleton().GetSenders())
+// NotifyReceivedBundle does nothing for this algorithm
+func (er *EpidemicRouting) NotifyReceivedBundle(_ *store.BundleDescriptor, _ *bpv7.Bundle) {}
 
-	endpoints := make(map[bpv7.EndpointID]bool)
-	unique := make([]cla.ConvergenceSender, 0, len(css))
-	for _, sender := range css {
-		_, present := endpoints[sender.GetPeerEndpointID()]
-		if !present {
-			endpoints[sender.GetPeerEndpointID()] = true
-			unique = append(unique, sender)
-		}
-	}
-
-	css = unique
-
+func (er *EpidemicRouting) SelectPeersForForwarding(descriptor *store.BundleDescriptor) ([]cla.ConvergenceSender, *bpv7.Bundle) {
+	peers := getFilteredPeers(descriptor)
 	log.WithFields(log.Fields{
-		"bundle":        bp,
-		"new receivers": css,
+		"bundle":        descriptor,
+		"new receivers": peers,
 	}).Debug("EpidemicRouting selected Convergence Senders for an outgoing bundle")
-
-	return
+	return peers, nil
 }
 
 func (_ *EpidemicRouting) NotifyPeerAppeared(_ bpv7.EndpointID) {}
