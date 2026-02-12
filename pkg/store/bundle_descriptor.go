@@ -94,6 +94,20 @@ func (bd *BundleDescriptor) Load() (*bpv7.Bundle, error) {
 	return GetStoreSingleton().loadEntireBundle(bd.metadata.SerialisedFileName)
 }
 
+// LoadPartialBundle loads at most one of each of the blocks with the types in wantedBlocks
+// this may be useful when the full bundle is not needed and the specified blocks exist at most once
+// because it may not require the whole bundle to be loaded
+func (bd *BundleDescriptor) LoadPartialBundle(wantedBlocks ...uint64) (*bpv7.PartialBundle, error) {
+	bd.stateMutex.RLock()
+	defer bd.stateMutex.RUnlock()
+
+	if bd.deleted {
+		return nil, NewBundleDeletedError(bd.metadata.ID)
+	}
+
+	return GetStoreSingleton().loadPartialBundle(bd.metadata.SerialisedFileName, wantedBlocks)
+}
+
 // GetKnownHolders gets the list of EndpointIDs which we know to already have received the bundle.
 // If bundle has been deleted, returns BundleDeletedError
 func (bd *BundleDescriptor) GetKnownHolders() ([]bpv7.EndpointID, error) {

@@ -8,8 +8,10 @@ package bpv7
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"sort"
 	"time"
 
@@ -52,6 +54,76 @@ func ParseBundle(r io.Reader) (b *Bundle, err error) {
 	b = &Bundle{}
 	err = cboring.Unmarshal(b, r)
 	return
+}
+
+// PartialBundle is a partially loaded bundle
+type PartialBundle struct {
+	PrimaryBlock    PrimaryBlock
+	ExtensionBlocks []CanonicalBlock
+}
+
+// FindExtensionBlock retrieves an extensionBlock from the PartialBundle based on its type
+func FindExtensionBlock[T ExtensionBlock](partialBundle *PartialBundle, eb *T) error {
+	for _, extensionBlock := range partialBundle.ExtensionBlocks {
+		if extensionBlock.TypeCode() == (*eb).BlockTypeCode() {
+			var ok bool
+			*eb, ok = extensionBlock.Value.(T)
+			if ok {
+				return nil
+			}
+		}
+	}
+	return errors.New("could not find block")
+}
+
+// ExtensionBlockByType returns a Canonical Block for the requested type code.
+// If there is no such Block an error will be returned.
+func (b *PartialBundle) ExtensionBlockByType(blockType uint64) (*CanonicalBlock, error) {
+	for _, extensionBlock := range b.ExtensionBlocks {
+		if extensionBlock.TypeCode() == blockType {
+			return &extensionBlock, nil
+		}
+	}
+	return nil, fmt.Errorf("no CanonicalBlock with block type %d was found in PartialBundle", blockType)
+}
+
+// ParsePartialBundle  reads the specified parts of a CBOR encoded Bundle from a Reader ito a PartialBundle.
+func ParsePartialBundle(r io.Reader, wantedExtensionBlocks []uint64) (*PartialBundle, error) {
+	var primary PrimaryBlock
+	var extensionBlocks []CanonicalBlock
+	if err := cboring.ReadExpect(cboring.IndefiniteArray, r); err != nil {
+		return nil, err
+	}
+
+	if err := cboring.Unmarshal(&primary, r); err != nil {
+		return nil, fmt.Errorf("PrimaryBlock failed: %v", err)
+	}
+	for {
+		cb := CanonicalBlock{}
+
+		if wanted, err := cb.UnmarshalWantedBlock(r, wantedExtensionBlocks); err == cboring.FlagBreakCode || cb.TypeCode() == BlockTypePayloadBlock {
+			break
+		} else if err != nil {
+			return nil, fmt.Errorf("CanonicalBlock failed: %v", err)
+		} else if wanted {
+			if index := slices.Index(wantedExtensionBlocks, cb.TypeCode()); index >= 0 {
+				wantedExtensionBlocks = slices.Delete(wantedExtensionBlocks, index, index+1)
+				extensionBlocks = append(extensionBlocks, cb)
+				if len(wantedExtensionBlocks) == 0 {
+					break
+				}
+			}
+		}
+	}
+	if err := primary.CheckValid(); err != nil {
+		return nil, err
+	}
+	for i := range extensionBlocks {
+		if err := extensionBlocks[i].CheckValid(); err != nil {
+			return nil, err
+		}
+	}
+	return &PartialBundle{PrimaryBlock: primary, ExtensionBlocks: extensionBlocks}, nil
 }
 
 // WriteBundle writes this Bundle CBOR encoded into a Writer.

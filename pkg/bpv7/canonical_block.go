@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 
 	"github.com/dtn7/cboring"
@@ -127,6 +128,100 @@ func (cb *CanonicalBlock) MarshalCbor(w io.Writer) error {
 	}
 
 	return nil
+}
+
+// UnmarshalWantedBlock creates this Canonical Block based on a CBOR representation if the type code is in
+// wantedBlocks and returns true.
+// otherwise it returns false and fills the Value field with a generic block with the correct type code
+func (cb *CanonicalBlock) UnmarshalWantedBlock(r io.Reader, wantedBlocks []uint64) (bool, error) {
+	var blockLen uint64
+	if bl, err := cboring.ReadArrayLength(r); err != nil {
+		return false, err
+	} else if bl != 5 && bl != 6 {
+		return false, fmt.Errorf("expected array with length 5 or 6, got %d", bl)
+	} else {
+		blockLen = bl
+	}
+	old := r
+	// Pipe incoming bytes into a separate CRC buffer
+	crcBuff := new(bytes.Buffer)
+	if blockLen == 6 {
+		// Replay array's start
+		if err := cboring.WriteArrayLength(blockLen, crcBuff); err != nil {
+			return false, err
+		}
+		r = io.TeeReader(r, crcBuff)
+	}
+
+	var blockType uint64
+	if bt, err := cboring.ReadUInt(r); err != nil {
+		return false, err
+	} else {
+		blockType = bt
+	}
+
+	if bn, err := cboring.ReadUInt(r); err != nil {
+		return false, err
+	} else {
+		cb.BlockNumber = bn
+	}
+
+	if bcf, err := cboring.ReadUInt(r); err != nil {
+		return false, err
+	} else {
+		cb.BlockControlFlags = BlockControlFlags(bcf)
+	}
+
+	if crcT, err := cboring.ReadUInt(r); err != nil {
+		return false, err
+	} else {
+		cb.CRCType = CRCType(crcT)
+	}
+
+	if !slices.Contains(wantedBlocks, blockType) {
+		length, err := cboring.ReadByteStringLen(r)
+		if err != nil {
+			return false, err
+		}
+		if s, ok := old.(io.Seeker); ok {
+			_, err = s.Seek(int64(length), io.SeekCurrent)
+			if err != nil {
+				return false, err
+			}
+		} else {
+			_, err = io.CopyN(io.Discard, old, int64(length))
+			if err != nil {
+				return false, err
+			}
+		}
+		cb.Value = &GenericExtensionBlock{typeCode: blockType}
+		if blockLen == 6 {
+			if _, err = cboring.ReadByteString(old); err != nil {
+				return false, err
+			}
+		}
+		return false, nil
+	}
+
+	if b, err := GetExtensionBlockManager().ReadBlock(blockType, r); err != nil {
+		return true, fmt.Errorf("unmarshalling block type %d failed: %v", blockType, err)
+	} else {
+		cb.Value = b
+	}
+
+	if blockLen == 6 {
+		if crcCalc, crcErr := calculateCRCBuff(crcBuff, cb.CRCType); crcErr != nil {
+			return true, crcErr
+		} else if crcVal, err := cboring.ReadByteString(r); err != nil {
+			return true, err
+		} else if !bytes.Equal(crcCalc, crcVal) {
+			return true, fmt.Errorf("invalid CRC value: %x instead of expected %x", crcVal, crcCalc)
+		} else {
+			cb.CRC = crcVal
+		}
+	}
+
+	return true, nil
 }
 
 // UnmarshalCbor creates this Canonical Block based on a CBOR representation.

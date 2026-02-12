@@ -206,6 +206,19 @@ func (bst *BundleStore) loadEntireBundle(filename string) (*bpv7.Bundle, error) 
 	return bundle, nil
 }
 
+func (bst *BundleStore) loadPartialBundle(filename string, wantedBlocks []uint64) (*bpv7.PartialBundle, error) {
+	path := filepath.Join(bst.bundleDirectory, filename)
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer closeWithError(f)
+
+	extensionBlocks, err := bpv7.ParsePartialBundle(f, wantedBlocks)
+
+	return extensionBlocks, err
+}
+
 // insertNewBundleUnsafe stores a new bundle on disk and creates a new BundleDescriptor
 // This method is NOT threadsafe - you must have locked the stateMutex BEFORE calling this.
 func (bst *BundleStore) insertNewBundleUnsafe(bundle *bpv7.Bundle) (*BundleDescriptor, error) {

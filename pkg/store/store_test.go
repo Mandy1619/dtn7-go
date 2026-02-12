@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"slices"
 	"testing"
 
 	log "github.com/sirupsen/logrus"
@@ -133,6 +134,87 @@ func TestConstraints(t *testing.T) {
 		if bd.Retain() || len(bd.retentionConstraints) > 0 {
 			t.Fatal("RetentionConstraint reset failed")
 		}
+	})
+}
+
+func Test_loadExtensionBlocks(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		initTest(t)
+		defer cleanupTest(t)
+		bundle := bpv7.GenerateRandomizedBundle(t, 0)
+		bp, err := GetStoreSingleton().InsertBundle(bundle)
+		if err != nil {
+			return
+		}
+
+		blocks, err := bp.LoadPartialBundle(bpv7.BlockTypeHopCountBlock, bpv7.BlockTypeBundleAgeBlock)
+		if !reflect.DeepEqual(bundle.PrimaryBlock, blocks.PrimaryBlock) {
+			t.Fail()
+		}
+		if len(blocks.ExtensionBlocks) != 2 {
+			t.Fail()
+		}
+		cb, err := bundle.ExtensionBlockByType(bpv7.BlockTypeHopCountBlock)
+		if err != nil {
+			t.Fail()
+		}
+		if !slices.ContainsFunc(blocks.ExtensionBlocks, func(block bpv7.CanonicalBlock) bool {
+			return reflect.DeepEqual(cb, &block)
+		}) {
+			t.Fail()
+		}
+		cb, err = bundle.ExtensionBlockByType(bpv7.BlockTypeBundleAgeBlock)
+		if err != nil {
+			t.Fail()
+		}
+		if !slices.ContainsFunc(blocks.ExtensionBlocks, func(block bpv7.CanonicalBlock) bool {
+			return reflect.DeepEqual(cb, &block)
+		}) {
+			t.Fail()
+		}
+
+		blocks, err = bp.LoadPartialBundle(bpv7.BlockTypeHopCountBlock)
+		if !reflect.DeepEqual(bundle.PrimaryBlock, blocks.PrimaryBlock) {
+			t.Fail()
+		}
+		if len(blocks.ExtensionBlocks) != 1 {
+			t.Fail()
+		}
+		cb, err = bundle.ExtensionBlockByType(bpv7.BlockTypeHopCountBlock)
+		if err != nil {
+			t.Fail()
+		}
+		if !slices.ContainsFunc(blocks.ExtensionBlocks, func(block bpv7.CanonicalBlock) bool {
+			return reflect.DeepEqual(cb, &block)
+		}) {
+			t.Fail()
+		}
+
+		blocks, err = bp.LoadPartialBundle(bpv7.BlockTypeBundleAgeBlock)
+		if !reflect.DeepEqual(bundle.PrimaryBlock, blocks.PrimaryBlock) {
+			t.Fail()
+		}
+		if len(blocks.ExtensionBlocks) != 1 {
+			t.Fail()
+		}
+		cb, err = bundle.ExtensionBlockByType(bpv7.BlockTypeBundleAgeBlock)
+		if err != nil {
+			t.Fail()
+		}
+		if !slices.ContainsFunc(blocks.ExtensionBlocks, func(block bpv7.CanonicalBlock) bool {
+			return reflect.DeepEqual(cb, &block)
+		}) {
+			t.Fail()
+		}
+
+		blocks, err = bp.LoadPartialBundle(bpv7.BlockTypePreviousNodeBlock)
+		if !reflect.DeepEqual(bundle.PrimaryBlock, blocks.PrimaryBlock) {
+			t.Fail()
+		}
+		if len(blocks.ExtensionBlocks) != 0 {
+			t.Fail()
+		}
+
 	})
 }
 
