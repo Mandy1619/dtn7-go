@@ -10,6 +10,8 @@ import (
 	"github.com/dtn7/dtn7-go/pkg/store"
 )
 
+const sprayBundleCopiesKey string = "spray_and_wait/copies"
+
 // SprayAndWait routing algorithm (https://doi.org/10.1145/1080139.1080143)
 // Implements both basic and binary mode
 type SprayAndWait struct {
@@ -35,7 +37,7 @@ func (router *SprayAndWait) NotifyPeerDisappeared(_ bpv7.EndpointID) {}
 
 func (router *SprayAndWait) NotifyNewBundle(descriptor *store.BundleDescriptor, _ *bpv7.Bundle) {
 	log.WithField("bundle", descriptor.ID()).Debug("Spray&Wait handling new bundle")
-	setCopies(descriptor, router.copies)
+	setSprayCopies(descriptor, router.copies)
 }
 
 func (router *SprayAndWait) NotifyReceivedBundle(descriptor *store.BundleDescriptor, bundle *bpv7.Bundle) {
@@ -44,35 +46,37 @@ func (router *SprayAndWait) NotifyReceivedBundle(descriptor *store.BundleDescrip
 	block, err := bundle.ExtensionBlockByType(bpv7.BlockTypeBinarySprayBlock)
 	if err != nil {
 		log.WithField("bundle", descriptor.ID()).Debug("Bundle has no BinarySprayBlock, using copies 0")
-		setCopies(descriptor, 0)
+		setSprayCopies(descriptor, 0)
 	} else {
+		// though the original paper does not specify either way,
+		// it seems sensible to honour the value of a BinarySprayBlock, even if we are not running in binary mode
 		copies := block.Value.(*bpv7.BinarySprayBlock).RemainingCopies()
 		log.WithFields(log.Fields{
 			"bundle": descriptor.ID(),
 			"copies": copies,
 		}).Debug("Bundle has BinarySprayBlock, using received copies")
-		setCopies(descriptor, copies)
+		setSprayCopies(descriptor, copies)
 	}
 }
 
-func (router *SprayAndWait) SelectPeersForForwarding(descriptor *store.BundleDescriptor) ([]cla.ConvergenceSender, *bpv7.Bundle) {
+func (router *SprayAndWait) SelectPeersForForwarding(descriptor *store.BundleDescriptor, peers []cla.ConvergenceSender) ([]cla.ConvergenceSender, *bpv7.Bundle) {
 	log.WithField("bundle", descriptor.ID()).Debug("Spray&Wait selecting peers for forwarding")
-	var copies uint64
-	data, ok := descriptor.GetMiscData("spray_and_wait/copies")
+	copies, ok := getSprayCopies(descriptor)
 	if !ok {
 		log.WithField("bundle", descriptor.ID()).Debug("Bundle had no saved copies, assuming default")
 		copies = router.copies
-		setCopies(descriptor, copies)
-	} else {
-		copies = data.(uint64)
+		setSprayCopies(descriptor, copies)
 	}
 
-	if !(copies > 0) {
-		log.WithField("bundle", descriptor.ID()).Debug("No bundle copies left to replicate")
+	if !router.binary && !(copies > 0) {
+		log.WithField("bundle", descriptor.ID()).Debug("Basic Spray stops at 0 copies remaining")
+		return []cla.ConvergenceSender{}, nil
+	} else if router.binary && !(copies > 1) {
+		log.WithField("bundle", descriptor.ID()).Debug("Binary Spray stops at 1 copy remaining")
 		return []cla.ConvergenceSender{}, nil
 	}
 
-	peers := getFilteredPeers(descriptor)
+	peers = filterPeers(descriptor, peers)
 	nPeers := uint64(len(peers))
 	if !(nPeers > 0) {
 		log.WithField("bundle", descriptor.ID()).Debug("No suitable peers connected")
@@ -103,7 +107,7 @@ func (router *SprayAndWait) selectBasicSpray(descriptor *store.BundleDescriptor,
 		selectedPeers = peers[0:copies]
 	}
 
-	setCopies(descriptor, remainingCopies)
+	setSprayCopies(descriptor, remainingCopies)
 	log.WithFields(log.Fields{
 		"bundle":           descriptor.ID(),
 		"remaining copies": remainingCopies,
@@ -117,6 +121,7 @@ func (router *SprayAndWait) selectBasicSpray(descriptor *store.BundleDescriptor,
 // Since we need to modify the bundle and attach an appropriate extension block, we can only choose one peer per routing invocation.
 func (router *SprayAndWait) selectBinarySpray(descriptor *store.BundleDescriptor, copies uint64, peers []cla.ConvergenceSender) ([]cla.ConvergenceSender, *bpv7.Bundle) {
 	log.WithField("bundle", descriptor.ID()).Debug("Spray&Wait running in binary mode")
+
 	sendCopies := copies / 2
 	retainedCopies := copies / 2
 	// if the number of copies is odd, we retain one more than we give away
@@ -164,17 +169,26 @@ func (router *SprayAndWait) selectBinarySpray(descriptor *store.BundleDescriptor
 		"peer":   peer[0],
 	}).Debug("Binary Spray&Wait selected peer for forwarding")
 
-	setCopies(descriptor, retainedCopies)
+	setSprayCopies(descriptor, retainedCopies)
 
 	return peer, bundle
 }
 
-func setCopies(descriptor *store.BundleDescriptor, copies uint64) {
-	err := descriptor.SetMiscData("spray_and_wait/copies", copies)
+func setSprayCopies(descriptor *store.BundleDescriptor, copies uint64) {
+	err := descriptor.SetMiscData(sprayBundleCopiesKey, copies)
 	if err != nil {
 		log.WithFields(log.Fields{
 			"bundle": descriptor.ID(),
 			"error":  err,
 		}).Error("Spray&Wait could not set bundle copies")
 	}
+}
+
+func getSprayCopies(descriptor *store.BundleDescriptor) (uint64, bool) {
+	data, ok := descriptor.GetMiscData(sprayBundleCopiesKey)
+	if !ok {
+		return 0, false
+	}
+	copies := data.(uint64)
+	return copies, true
 }
