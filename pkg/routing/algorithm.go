@@ -75,6 +75,10 @@ func GetAlgorithmSingleton() Algorithm {
 	return algorithmSingleton
 }
 
+func ShutdownAlgorithm() {
+	algorithmSingleton = nil
+}
+
 // filterCLAs filters the nodes which already received a Bundle.
 // It returns a list of unused ConvergenceSenders.
 func filterCLAs(bundleDescriptor *store.BundleDescriptor, clas []cla.ConvergenceSender) (filtered []cla.ConvergenceSender) {

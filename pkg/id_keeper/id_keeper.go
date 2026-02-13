@@ -60,6 +60,10 @@ func InitializeIdKeeper() {
 	}
 }
 
+func ShutdownIdKeeper() {
+	idKeeperSingleton = nil
+}
+
 func GetIdKeeperSingleton() *IdKeeper {
 	if idKeeperSingleton == nil {
 		log.Fatalf("Attempting to access an uninitialised IdKeeper. This must never happen!")

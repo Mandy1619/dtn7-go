@@ -183,6 +183,8 @@ func stopDtnd() {
 	discovery.ShutdownDiscoveryManager()
 	cla.ShutdownCLAManager()
 	application_agent.ShutdownAAManager()
+	routing.ShutdownAlgorithm()
+	id_keeper.ShutdownIdKeeper()
 	err := store.ShutdownStore()
 	if err != nil {
 		log.WithField("error", err).Error("Error shutting down store")
