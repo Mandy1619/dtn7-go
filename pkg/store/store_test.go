@@ -104,7 +104,43 @@ func TestBundleDeletion(t *testing.T) {
 }
 
 func TestLoadFromDisk(t *testing.T) {
+	rapid.Check(t, func(rt *rapid.T) {
+		initTest(t)
+		defer cleanupTest(t)
 
+		// generate bundle and add it to the store
+		bundle := randomizedBundleGenerator.Draw(rt, "bundle")
+		descriptor, err := GetStoreSingleton().InsertBundle(bundle)
+		if err != nil {
+			rt.Fatal(err)
+		}
+
+		// shut down store and restart it, so that data has to be loaded from disk
+		err = ShutdownStore()
+		if err != nil {
+			rt.Fatal(err)
+		}
+		initTest(t)
+
+		// get loaded descriptor & bundle and check them for equality with the original ones
+		retrieved, err := GetStoreSingleton().GetBundleDescriptor(descriptor.ID())
+		if err != nil {
+			rt.Fatal(err)
+		}
+
+		if !(reflect.DeepEqual(descriptor.metadata, retrieved.metadata)) {
+			rt.Error("Original and reloaded BundleDescriptors have different metadata")
+		}
+
+		loadBundle, err := retrieved.Load()
+		if err != nil {
+			rt.Fatal(err)
+		}
+
+		if !(reflect.DeepEqual(bundle, loadBundle)) {
+			rt.Error("Original and reloaded BundleDescriptors have different metadata")
+		}
+	})
 }
 
 func TestConstraints(t *testing.T) {
