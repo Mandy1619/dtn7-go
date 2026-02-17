@@ -17,8 +17,8 @@ type BundleMetadata struct {
 	Destination            bpv7.EndpointID
 	ReportTo               bpv7.EndpointID
 	IsAdministrativeRecord bool
-	// miscellaneousData is arbitrary additional data that components of dtnd want to associate with this bundle
-	miscellaneousData map[string]interface{}
+	// MiscellaneousData is arbitrary additional data that components of dtnd want to associate with this bundle
+	MiscellaneousData map[string]interface{}
 
 	// Bundle's ID in string-form. Used as the database primary-key. Return-value of ID.String()
 	IDString string `badgerhold:"key"`
@@ -87,7 +87,7 @@ func (bd *BundleDescriptor) GetMiscData(key string) (interface{}, bool) {
 	bd.stateMutex.RLock()
 	defer bd.stateMutex.RUnlock()
 
-	data, ok := bd.metadata.miscellaneousData[key]
+	data, ok := bd.metadata.MiscellaneousData[key]
 	return data, ok
 }
 
@@ -96,7 +96,7 @@ func (bd *BundleDescriptor) SetMiscData(key string, value interface{}) error {
 	bd.stateMutex.Lock()
 	defer bd.stateMutex.Unlock()
 
-	bd.metadata.miscellaneousData[key] = value
+	bd.metadata.MiscellaneousData[key] = value
 	err := GetStoreSingleton().updateBundleMetadata(bd.metadata)
 	return err
 }
