@@ -57,7 +57,7 @@ func TestSingle(t *testing.T) {
 		t.Fatalf("Error parsing timeout: %v", err.Error())
 	}
 
-	bndl := bpv7.GenerateSampleBundle(t)
+	bndl := generateSampleBundle(t)
 	port := 35037
 	recvChan := make(chan *bpv7.Bundle)
 

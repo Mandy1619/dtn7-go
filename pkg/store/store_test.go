@@ -14,20 +14,21 @@ import (
 	"github.com/dtn7/dtn7-go/pkg/bpv7"
 )
 
-func initTest(t *rapid.T) {
+func initTest(t *testing.T) {
 	log.SetLevel(log.ErrorLevel)
-	nodeID, err := bpv7.NewEndpointID(rapid.StringMatching(bpv7.DtnEndpointRegexpNotNone).Draw(t, "nodeID"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	nodeID := bpv7.EndpointID{EndpointType: bpv7.DtnEndpoint{
+		NodeName:  "test",
+		Demux:     "",
+		IsDtnNone: false,
+	}}
 
-	err = InitialiseStore(nodeID, "/tmp/dtn7-test")
+	err := InitialiseStore(nodeID, "/tmp/dtn7-test")
 	if err != nil {
 		t.Fatal(err)
 	}
 }
 
-func cleanupTest(t *rapid.T) {
+func cleanupTest(t *testing.T) {
 	err := ShutdownStore()
 	if err != nil {
 		t.Fatal(err)
@@ -39,109 +40,113 @@ func cleanupTest(t *rapid.T) {
 }
 
 func TestBundleInsertion(t *testing.T) {
-	rapid.Check(t, func(t *rapid.T) {
+	rapid.Check(t, func(rt *rapid.T) {
 		initTest(t)
 		defer cleanupTest(t)
 
-		bundle := bpv7.GenerateRandomizedBundle(t, 0)
+		bundle := randomizedBundleGenerator.Draw(rt, "bundle")
 		bd, err := GetStoreSingleton().InsertBundle(bundle)
 		if err != nil {
-			t.Fatal(err)
+			rt.Fatal(err)
 		}
 
 		bdLoad, err := GetStoreSingleton().GetBundleDescriptor(bundle.ID())
 		if err != nil {
-			t.Fatal(err)
+			rt.Fatal(err)
 		}
 
 		if !reflect.DeepEqual(bd, bdLoad) {
-			t.Fatal("Retrieved BundleDescriptor not equal")
+			rt.Fatal("Retrieved BundleDescriptor not equal")
 		}
 
 		bundleLoad, err := bdLoad.Load()
 		if err != nil {
-			t.Fatal(err)
+			rt.Fatal(err)
 		}
 
 		if !reflect.DeepEqual(bundle, bundleLoad) {
-			t.Fatal("Retrieved Bundle not equal")
+			rt.Fatal("Retrieved Bundle not equal")
 		}
 	})
 }
 
 func TestBundleDeletion(t *testing.T) {
-	rapid.Check(t, func(t *rapid.T) {
+	rapid.Check(t, func(rt *rapid.T) {
 		initTest(t)
 		defer cleanupTest(t)
 
-		bundle := bpv7.GenerateRandomizedBundle(t, 0)
+		bundle := randomizedBundleGenerator.Draw(rt, "bundle")
 		bd, err := GetStoreSingleton().InsertBundle(bundle)
 		if err != nil {
-			t.Fatal(err)
+			rt.Fatal(err)
 		}
 
 		err = bd.ResetConstraints()
 		if err != nil {
-			t.Fatal(err)
+			rt.Fatal(err)
 		}
 
 		err = bd.Delete(false)
 		if err != nil {
-			t.Fatal(err)
+			rt.Fatal(err)
 		}
 
 		if !bd.Deleted() {
-			t.Fatal("Bundle not marked as deleted")
+			rt.Fatal("Bundle not marked as deleted")
 		}
 
 		_, err = GetStoreSingleton().GetBundleDescriptor(bundle.ID())
 		target := &NoSuchBundleError{}
 		if !errors.As(err, &target) {
-			t.Fatal("Bundle exists after deletion")
+			rt.Fatal("Bundle exists after deletion")
 		}
 	})
 }
 
+func TestLoadFromDisk(t *testing.T) {
+
+}
+
 func TestConstraints(t *testing.T) {
-	rapid.Check(t, func(t *rapid.T) {
+	rapid.Check(t, func(rt *rapid.T) {
 		initTest(t)
 		defer cleanupTest(t)
 
-		bundle := bpv7.GenerateRandomizedBundle(t, 0)
+		bundle := randomizedBundleGenerator.Draw(rt, "bundle")
 		bd, err := GetStoreSingleton().InsertBundle(bundle)
 		if err != nil {
-			t.Fatal(err)
+			rt.Fatal(err)
 		}
 
-		numConstraints := rapid.IntRange(1, 5).Draw(t, "Number of constraints")
+		numConstraints := rapid.IntRange(1, 5).Draw(rt, "Number of constraints")
 		constraints := make([]Constraint, numConstraints)
 		for i := range constraints {
-			constraint := Constraint(rapid.IntRange(int(DispatchPending), int(ReassemblyPending)).Draw(t, fmt.Sprintf("constraint %v", i)))
+			constraint := Constraint(rapid.IntRange(int(DispatchPending), int(ReassemblyPending)).Draw(rt, fmt.Sprintf("constraint %v", i)))
 			constraints[i] = constraint
 		}
 
 		// test constraint addition
-		addConstraints(t, bd, constraints)
+		addConstraints(rt, bd, constraints)
 		// test constraint deletion
-		removeConstraints(t, bd, constraints)
+		removeConstraints(rt, bd, constraints)
 
 		// test constraint reset
-		addConstraints(t, bd, constraints)
+		addConstraints(rt, bd, constraints)
 		err = bd.ResetConstraints()
 		if err != nil {
 			t.Fatalf("Error resetting constraints: %v", err)
 		}
 		if bd.Retain() || len(bd.retentionConstraints) > 0 {
-			t.Fatal("RetentionConstraint reset failed")
+			rt.Fatal("RetentionConstraint reset failed")
 		}
 	})
 }
 
 func Test_loadExtensionBlocks(t *testing.T) {
-	rapid.Check(t, func(t *rapid.T) {
+	rapid.Check(t, func(rt *rapid.T) {
 		initTest(t)
 		defer cleanupTest(t)
-		bundle := bpv7.GenerateRandomizedBundle(t, 0)
+		bundle := randomizedBundleGenerator.Draw(rt, "bundle")
 		bp, err := GetStoreSingleton().InsertBundle(bundle)
 		if err != nil {
 			return
@@ -149,70 +154,70 @@ func Test_loadExtensionBlocks(t *testing.T) {
 
 		blocks, err := bp.LoadPartialBundle(bpv7.BlockTypeHopCountBlock, bpv7.BlockTypeBundleAgeBlock)
 		if !reflect.DeepEqual(bundle.PrimaryBlock, blocks.PrimaryBlock) {
-			t.Fail()
+			rt.Fail()
 		}
 		if len(blocks.ExtensionBlocks) != 2 {
-			t.Fail()
+			rt.Fail()
 		}
 		cb, err := bundle.ExtensionBlockByType(bpv7.BlockTypeHopCountBlock)
 		if err != nil {
-			t.Fail()
+			rt.Fail()
 		}
 		if !slices.ContainsFunc(blocks.ExtensionBlocks, func(block bpv7.CanonicalBlock) bool {
 			return reflect.DeepEqual(cb, &block)
 		}) {
-			t.Fail()
+			rt.Fail()
 		}
 		cb, err = bundle.ExtensionBlockByType(bpv7.BlockTypeBundleAgeBlock)
 		if err != nil {
-			t.Fail()
+			rt.Fail()
 		}
 		if !slices.ContainsFunc(blocks.ExtensionBlocks, func(block bpv7.CanonicalBlock) bool {
 			return reflect.DeepEqual(cb, &block)
 		}) {
-			t.Fail()
+			rt.Fail()
 		}
 
 		blocks, err = bp.LoadPartialBundle(bpv7.BlockTypeHopCountBlock)
 		if !reflect.DeepEqual(bundle.PrimaryBlock, blocks.PrimaryBlock) {
-			t.Fail()
+			rt.Fail()
 		}
 		if len(blocks.ExtensionBlocks) != 1 {
-			t.Fail()
+			rt.Fail()
 		}
 		cb, err = bundle.ExtensionBlockByType(bpv7.BlockTypeHopCountBlock)
 		if err != nil {
-			t.Fail()
+			rt.Fail()
 		}
 		if !slices.ContainsFunc(blocks.ExtensionBlocks, func(block bpv7.CanonicalBlock) bool {
 			return reflect.DeepEqual(cb, &block)
 		}) {
-			t.Fail()
+			rt.Fail()
 		}
 
 		blocks, err = bp.LoadPartialBundle(bpv7.BlockTypeBundleAgeBlock)
 		if !reflect.DeepEqual(bundle.PrimaryBlock, blocks.PrimaryBlock) {
-			t.Fail()
+			rt.Fail()
 		}
 		if len(blocks.ExtensionBlocks) != 1 {
-			t.Fail()
+			rt.Fail()
 		}
 		cb, err = bundle.ExtensionBlockByType(bpv7.BlockTypeBundleAgeBlock)
 		if err != nil {
-			t.Fail()
+			rt.Fail()
 		}
 		if !slices.ContainsFunc(blocks.ExtensionBlocks, func(block bpv7.CanonicalBlock) bool {
 			return reflect.DeepEqual(cb, &block)
 		}) {
-			t.Fail()
+			rt.Fail()
 		}
 
 		blocks, err = bp.LoadPartialBundle(bpv7.BlockTypePreviousNodeBlock)
 		if !reflect.DeepEqual(bundle.PrimaryBlock, blocks.PrimaryBlock) {
-			t.Fail()
+			rt.Fail()
 		}
 		if len(blocks.ExtensionBlocks) != 0 {
-			t.Fail()
+			rt.Fail()
 		}
 
 	})

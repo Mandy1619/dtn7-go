@@ -13,7 +13,7 @@ import (
 )
 
 func TestBundleBuilderSimple(t *testing.T) {
-	bndl := GenerateSampleBundle(t)
+	bndl := generateSampleBundle(t)
 
 	buff := new(bytes.Buffer)
 	if err := bndl.MarshalCbor(buff); err != nil {

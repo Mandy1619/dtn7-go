@@ -48,7 +48,7 @@ func TestMailbox_Deliver(t *testing.T) {
 		instanceID, mailbox := initMailboxTest(t)
 		defer cleanupMailboxTest(t, instanceID)
 
-		bndl := bpv7.GenerateRandomizedBundle(tr, 0)
+		bndl := randomizedBundleGenerator.Draw(tr, "bundle")
 
 		bdesc, err := store.GetStoreSingleton().InsertBundle(bndl)
 		if err != nil {
@@ -77,7 +77,7 @@ func TestMailbox_Get(t *testing.T) {
 
 		nBundles := rapid.Uint8Min(1).Draw(tr, "Drawing number of test bundles")
 		for i := range nBundles {
-			bndl := bpv7.GenerateRandomizedBundle(tr, i)
+			bndl := randomizedBundleGenerator.Draw(tr, fmt.Sprintf("bundle %d", i))
 
 			bdesc, err := store.GetStoreSingleton().InsertBundle(bndl)
 			if err != nil {
@@ -125,7 +125,7 @@ func TestMailbox_All(t *testing.T) {
 		bundleMap := make(map[bpv7.BundleID]*bpv7.Bundle, nBundles)
 
 		for i := range nBundles {
-			bndl := bpv7.GenerateRandomizedBundle(tr, i)
+			bndl := randomizedBundleGenerator.Draw(tr, fmt.Sprintf("bundle %d", i))
 			if _, ok := bundleMap[bndl.ID()]; !ok {
 				bundles = append(bundles, bndl)
 				bundleMap[bndl.ID()] = bndl

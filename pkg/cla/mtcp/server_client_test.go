@@ -61,7 +61,7 @@ func TestSendReceive(t *testing.T) {
 		bundles := make([]*bpv7.Bundle, numberOfBundles)
 		var i uint8
 		for i = 0; i < numberOfBundles; i++ {
-			bundles[i] = bpv7.GenerateRandomizedBundle(t, i)
+			bundles[i] = randomizedBundleGenerator.Draw(t, fmt.Sprintf("bundle %d", i))
 		}
 
 		receiveFunc := func(bundle *bpv7.Bundle) {
