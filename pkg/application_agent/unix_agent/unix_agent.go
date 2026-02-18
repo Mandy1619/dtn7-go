@@ -51,7 +51,7 @@ func (agent *UNIXAgent) Endpoints() []bpv7.EndpointID {
 	return agent.mailboxes.RegisteredIDs()
 }
 
-func (agent *UNIXAgent) Deliver(bundleDescriptor *store.BundleDescriptor) error {
+func (agent *UNIXAgent) DeliverBundle(bundleDescriptor *store.BundleDescriptor) error {
 	return agent.mailboxes.Deliver(bundleDescriptor)
 }
 

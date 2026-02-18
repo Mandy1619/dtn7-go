@@ -5,6 +5,7 @@
 package application_agent
 
 import (
+	"errors"
 	"sync"
 
 	log "github.com/sirupsen/logrus"
@@ -113,14 +114,26 @@ func (manager *Manager) UnregisterAgent(agentName string) error {
 	return nil
 }
 
-// Delivery attempts to deliver a bundle to all registered agents
-func (manager *Manager) Delivery(bundleDescriptor *store.BundleDescriptor) {
+// DeliverBundle attempts to deliver a bundle to all registered agents
+func (manager *Manager) DeliverBundle(bundleDescriptor *store.BundleDescriptor) {
 	manager.stateMutex.RLock()
 	defer manager.stateMutex.RUnlock()
 
 	for _, agent := range manager.agents {
-		err := agent.Deliver(bundleDescriptor)
+		err := agent.DeliverBundle(bundleDescriptor)
 		if err != nil {
+			var noIDError NoSuchIDError
+			if errors.As(err, &noIDError) {
+				log.WithField("bundle", bundleDescriptor.ID().String()).Trace("Agent did not know destination ID")
+				return
+			}
+
+			var alreadyDelivered AlreadyDeliveredError
+			if errors.As(err, &alreadyDelivered) {
+				log.WithField("bundle", bundleDescriptor.ID().String()).Trace("Bundle has already been delivered")
+				return
+			}
+
 			log.WithFields(log.Fields{
 				"bundle": bundleDescriptor,
 				"agent":  agent,
@@ -131,13 +144,13 @@ func (manager *Manager) Delivery(bundleDescriptor *store.BundleDescriptor) {
 }
 
 // Send is a callback to be used by agents to send a newly created bundle
-func (manager *Manager) Send(bndl *bpv7.Bundle) bpv7.BundleID {
+func (manager *Manager) Send(bundle *bpv7.Bundle) bpv7.BundleID {
 	// TODO: call the IdKeeper at a more centralised location
 	idKeeper := id_keeper.GetIdKeeperSingleton()
-	idKeeper.Update(bndl)
-	log.WithFields(log.Fields{"bundle": bndl.ID().String()}).Debug("Application agent sent bundle")
-	manager.sendCallback(bndl)
-	return bndl.ID()
+	idKeeper.Update(bundle)
+	log.WithFields(log.Fields{"bundle": bundle.ID().String()}).Debug("Application agent sent bundle")
+	manager.sendCallback(bundle)
+	return bundle.ID()
 }
 
 // GC performs garbage collection on all registered agents

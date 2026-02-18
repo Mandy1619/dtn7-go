@@ -124,8 +124,8 @@ func (ra *RestAgent) GC() {
 	ra.mailboxes.GC()
 }
 
-// Deliver checks incoming BundleMessages and puts them in a mailbox.
-func (ra *RestAgent) Deliver(bundleDescriptor *store.BundleDescriptor) error {
+// DeliverBundle checks incoming BundleMessages and puts them in a mailbox.
+func (ra *RestAgent) DeliverBundle(bundleDescriptor *store.BundleDescriptor) error {
 	return ra.mailboxes.Deliver(bundleDescriptor)
 }
 

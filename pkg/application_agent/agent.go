@@ -20,8 +20,8 @@ type ApplicationAgent interface {
 	// Endpoints returns the EndpointIDs that have been registered with this ApplicationAgent.
 	Endpoints() []bpv7.EndpointID
 
-	// Deliver delivers the bundle to  this Agent's mailboxes
-	Deliver(bundleDescriptor *store.BundleDescriptor) error
+	// DeliverBundle delivers the bundle to this Agent's mailboxes
+	DeliverBundle(bundleDescriptor *store.BundleDescriptor) error
 
 	Start() error
 

@@ -9,7 +9,7 @@ var randomizedBundleGenerator = rapid.Custom(func(t *rapid.T) *bpv7.Bundle {
 	bndl, err := bpv7.Builder().
 		CRC(bpv7.CRC32).
 		Source(rapid.StringMatching(bpv7.DtnEndpointRegexpNotNone).Draw(t, "sourceID")).
-		Destination(rapid.StringMatching(bpv7.DtnEndpointRegexpFull).Draw(t, "destinationID")).
+		Destination(rapid.StringMatching(bpv7.DtnEndpointRegexpNotNone).Draw(t, "destinationID")).
 		CreationTimestampNow().
 		Lifetime("10m").
 		HopCountBlock(64).

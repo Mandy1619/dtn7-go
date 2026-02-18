@@ -44,10 +44,6 @@ func (mailbox *Mailbox) Deliver(bndl *store.BundleDescriptor) error {
 		return NewAlreadyDeliveredError(bid)
 	}
 
-	if _, err := store.GetStoreSingleton().GetBundleDescriptor(bid); err != nil {
-		return err
-	}
-
 	mailbox.messages[bid] = false
 
 	return nil

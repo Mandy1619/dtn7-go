@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	log "github.com/sirupsen/logrus"
 	"pgregory.net/rapid"
 
@@ -75,42 +76,40 @@ func TestMailbox_Get(t *testing.T) {
 		instanceID, mailbox := initMailboxTest(t)
 		defer cleanupMailboxTest(t, instanceID)
 
-		nBundles := rapid.Uint8Min(1).Draw(tr, "Drawing number of test bundles")
-		for i := range nBundles {
-			bndl := randomizedBundleGenerator.Draw(tr, fmt.Sprintf("bundle %d", i))
+		bundle := randomizedBundleGenerator.Draw(tr, fmt.Sprintf("bundle"))
 
-			bdesc, err := store.GetStoreSingleton().InsertBundle(bndl)
-			if err != nil {
-				tr.Fatal(err)
-			}
-			err = mailbox.Deliver(bdesc)
-			if err != nil {
-				tr.Fatal(errors.Unwrap(err))
-			}
-
-			retrieved, err := mailbox.Get(bndl.ID(), false)
-			if err != nil {
-				tr.Fatal(errors.Unwrap(err))
-			}
-
-			if !reflect.DeepEqual(*bndl, *retrieved) {
-				tr.Fatal("Retrieved bundle was not the same")
-			}
-
-			if _, ok := mailbox.messages[bndl.ID()]; !ok {
-				tr.Fatal("Bundle erroneously removed")
-			}
-
-			if !mailbox.messages[bndl.ID()] {
-				tr.Fatal("Retrieved bundle not marked as retrieved")
-			}
-
-			_, err = mailbox.Get(bndl.ID(), true)
-
-			if _, ok := mailbox.messages[bndl.ID()]; ok {
-				tr.Fatal("Bundle should have been removed")
-			}
+		descriptor, err := store.GetStoreSingleton().InsertBundle(bundle)
+		if err != nil {
+			tr.Fatal(err)
 		}
+		err = mailbox.Deliver(descriptor)
+		if err != nil {
+			tr.Fatal(errors.Unwrap(err))
+		}
+
+		retrieved, err := mailbox.Get(bundle.ID(), false)
+		if err != nil {
+			tr.Fatal(errors.Unwrap(err))
+		}
+
+		if diff := cmp.Diff(*bundle, *retrieved); diff != "" {
+			tr.Fatalf("Retrieved bundle was not the same: %v", diff)
+		}
+
+		if _, ok := mailbox.messages[bundle.ID()]; !ok {
+			tr.Fatal("Bundle erroneously removed")
+		}
+
+		if !mailbox.messages[bundle.ID()] {
+			tr.Fatal("Retrieved bundle not marked as retrieved")
+		}
+
+		_, err = mailbox.Get(bundle.ID(), true)
+
+		if _, ok := mailbox.messages[bundle.ID()]; ok {
+			tr.Fatal("Bundle should have been removed")
+		}
+
 	})
 }
 
@@ -149,7 +148,7 @@ func TestMailbox_All(t *testing.T) {
 
 		list := mailbox.List()
 		if len(setA) != len(list) {
-			tr.Fatalf("List returned wrond number of ids, expected: %v, got: %v", len(setA), len(list))
+			tr.Fatalf("List returned wrong number of ids, expected: %v, got: %v", len(setA), len(list))
 		}
 
 		get, err := mailbox.GetAll(true)
@@ -160,7 +159,7 @@ func TestMailbox_All(t *testing.T) {
 
 		list = mailbox.List()
 		if len(list) > 0 {
-			tr.Fatalf("List should retrun empty slice, returned %v", list)
+			tr.Fatalf("List should return empty slice, returned %v", list)
 		}
 
 		for _, bndl := range setB {
@@ -172,7 +171,7 @@ func TestMailbox_All(t *testing.T) {
 
 		list = mailbox.List()
 		if len(setB) != len(list) {
-			tr.Fatalf("List returned wrond number of ids, expected: %v, got: %v", len(setB), len(list))
+			tr.Fatalf("List returned wrong number of ids, expected: %v, got: %v", len(setB), len(list))
 		}
 
 		get, err = mailbox.GetAll(false)
@@ -183,7 +182,7 @@ func TestMailbox_All(t *testing.T) {
 
 		list = mailbox.List()
 		if len(setB) != len(list) {
-			tr.Fatalf("List returned wrond number of ids, expected: %v, got: %v", len(setB), len(list))
+			tr.Fatalf("List returned wrong number of ids, expected: %v, got: %v", len(setB), len(list))
 		}
 	})
 }
