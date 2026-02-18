@@ -129,6 +129,10 @@ func (ra *RestAgent) DeliverBundle(bundleDescriptor *store.BundleDescriptor) err
 	return ra.mailboxes.Deliver(bundleDescriptor)
 }
 
+func (ra *RestAgent) DeliverAdminRecord(_ *bpv7.Bundle) bool {
+	return true
+}
+
 // randomUuid to be used for authentication. UUID not compliant with RFC 4122.
 func (_ *RestAgent) randomUuid() (uuid string, err error) {
 	uuidBytes := make([]byte, 16)

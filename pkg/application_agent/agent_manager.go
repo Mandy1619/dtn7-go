@@ -143,6 +143,19 @@ func (manager *Manager) DeliverBundle(bundleDescriptor *store.BundleDescriptor) 
 	}
 }
 
+func (manager *Manager) DeliverAdministrativeRecord(bundle *bpv7.Bundle) bool {
+	manager.stateMutex.RLock()
+	defer manager.stateMutex.RUnlock()
+
+	retain := true
+
+	for _, agent := range manager.agents {
+		retain = retain && agent.DeliverAdminRecord(bundle)
+	}
+
+	return retain
+}
+
 // Send is a callback to be used by agents to send a newly created bundle
 func (manager *Manager) Send(bundle *bpv7.Bundle) bpv7.BundleID {
 	// TODO: call the IdKeeper at a more centralised location

@@ -31,6 +31,11 @@ func (er *EpidemicRouting) NotifyNewBundle(_ *store.BundleDescriptor, _ *bpv7.Bu
 // NotifyReceivedBundle does nothing for this algorithm
 func (er *EpidemicRouting) NotifyReceivedBundle(_ *store.BundleDescriptor, _ *bpv7.Bundle) {}
 
+// NotifyReceivedAdministrativeRecord does nothing for this algorithm
+func (er *EpidemicRouting) NotifyReceivedAdministrativeRecord(_ *bpv7.Bundle) bool {
+	return true
+}
+
 func (er *EpidemicRouting) SelectPeersForForwarding(descriptor *store.BundleDescriptor, peers []cla.ConvergenceSender) ([]cla.ConvergenceSender, *bpv7.Bundle) {
 	peers = filterPeers(descriptor, peers)
 	log.WithFields(log.Fields{

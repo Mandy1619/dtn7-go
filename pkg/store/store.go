@@ -238,6 +238,18 @@ func (bst *BundleStore) insertNewBundleUnsafe(bundle *bpv7.Bundle) (*BundleDescr
 		SerialisedFileName:     serialisedFileName,
 	}
 
+	if metadata.IsAdministrativeRecord {
+		record, err := bundle.AdministrativeRecord()
+		if err != nil {
+			log.WithFields(log.Fields{
+				"bundle": metadata.ID.String(),
+				"error":  err,
+			}).Error("Unable to read administrative record")
+		} else {
+			metadata.AdministrativeRecordType = record.RecordType()
+		}
+	}
+
 	if previousNodeBlock, err := bundle.ExtensionBlockByType(bpv7.BlockTypePreviousNodeBlock); err == nil {
 		previousNode := previousNodeBlock.Value.(*bpv7.PreviousNodeBlock).Endpoint()
 		metadata.KnownHolders = append(metadata.KnownHolders, previousNode)

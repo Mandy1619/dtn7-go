@@ -12,11 +12,12 @@ import (
 // BundleMetadata is metadata mirrored from a Bundle's primary-/extensionblocks that is used throughout the program.
 // We don't want to keep the entire bundle in memory, so we only keep this selected subset of data.
 type BundleMetadata struct {
-	ID                     bpv7.BundleID
-	Source                 bpv7.EndpointID
-	Destination            bpv7.EndpointID
-	ReportTo               bpv7.EndpointID
-	IsAdministrativeRecord bool
+	ID                       bpv7.BundleID
+	Source                   bpv7.EndpointID
+	Destination              bpv7.EndpointID
+	ReportTo                 bpv7.EndpointID
+	IsAdministrativeRecord   bool
+	AdministrativeRecordType bpv7.AdminRecordType
 	// MiscellaneousData is arbitrary additional data that components of dtnd want to associate with this bundle
 	MiscellaneousData map[string]interface{}
 

@@ -55,6 +55,10 @@ func (agent *UNIXAgent) DeliverBundle(bundleDescriptor *store.BundleDescriptor) 
 	return agent.mailboxes.Deliver(bundleDescriptor)
 }
 
+func (agent *UNIXAgent) DeliverAdminRecord(_ *bpv7.Bundle) bool {
+	return true
+}
+
 func (agent *UNIXAgent) Start() error {
 	log.WithFields(log.Fields{
 		"address": agent.listenAddress,

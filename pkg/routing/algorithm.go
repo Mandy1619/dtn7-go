@@ -48,6 +48,11 @@ type Algorithm interface {
 	// Whether an algorithm acts on this information or ignores it, is an implementation matter.
 	NotifyReceivedBundle(descriptor *store.BundleDescriptor, bundle *bpv7.Bundle)
 
+	// NotifyReceivedAdministrativeRecord notifies the algorithm about a bundle that contains an administrative record
+	// Whether an algorithm acts on this information or ignores it, is an implementation matter.
+	// The return value "retain" tells the processing pipeline whether the bundle should be saved to disk, or dropped after processing
+	NotifyReceivedAdministrativeRecord(bundle *bpv7.Bundle) (retain bool)
+
 	// SelectPeersForForwarding returns an array of ConvergenceSender for a requested bundle.
 	// dtnd will attempt to forward the bundle to all the selected peers.
 	// If the routing algorithm needs to make any modifications to the bundle, it should load the bundle, make modifications and then return the pointer.

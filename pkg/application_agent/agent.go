@@ -23,6 +23,10 @@ type ApplicationAgent interface {
 	// DeliverBundle delivers the bundle to this Agent's mailboxes
 	DeliverBundle(bundleDescriptor *store.BundleDescriptor) error
 
+	// DeliverAdminRecord delivers AdministrativeRecord to this agent
+	// The return value "retain" tells the processing pipeline whether the bundle should be saved to disk, or dropped after processing
+	DeliverAdminRecord(bundle *bpv7.Bundle) (retain bool)
+
 	Start() error
 
 	Shutdown()

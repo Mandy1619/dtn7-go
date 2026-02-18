@@ -59,6 +59,11 @@ func (router *SprayAndWait) NotifyReceivedBundle(descriptor *store.BundleDescrip
 	}
 }
 
+// NotifyReceivedAdministrativeRecord does nothing for this algorithm
+func (router *SprayAndWait) NotifyReceivedAdministrativeRecord(_ *bpv7.Bundle) bool {
+	return true
+}
+
 func (router *SprayAndWait) SelectPeersForForwarding(descriptor *store.BundleDescriptor, peers []cla.ConvergenceSender) ([]cla.ConvergenceSender, *bpv7.Bundle) {
 	log.WithField("bundle", descriptor.ID()).Debug("Spray&Wait selecting peers for forwarding")
 	copies, ok := getSprayCopies(descriptor)
