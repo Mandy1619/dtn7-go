@@ -1,4 +1,5 @@
 // SPDX-FileCopyrightText: 2019, 2020, 2021 Alvar Penning
+// SPDX-FileCopyrightText: 2026 Markus Sommer
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -12,7 +13,7 @@ import (
 	"github.com/dtn7/cboring"
 )
 
-// BundleStatusItem represents the a bundle status item, as used as an element
+// BundleStatusItem represents a bundle status item, as used as an element
 // in the bundle status information array of each Bundle Status Report.
 type BundleStatusItem struct {
 	Asserted        bool
@@ -74,7 +75,7 @@ func (bsi *BundleStatusItem) UnmarshalCbor(r io.Reader) error {
 	return nil
 }
 
-func (bsi BundleStatusItem) String() string {
+func (bsi *BundleStatusItem) String() string {
 	if !bsi.Asserted {
 		return fmt.Sprintf("BundleStatusItem(%t)", bsi.Asserted)
 	} else {
@@ -278,7 +279,7 @@ func NewStatusReport(bndl *Bundle, statusItem StatusInformationPos, reason Statu
 }
 
 // StatusInformations returns an array of available StatusInformationPos.
-func (sr StatusReport) StatusInformations() (sips []StatusInformationPos) {
+func (sr *StatusReport) StatusInformations() (sips []StatusInformationPos) {
 	for i := 0; i < len(sr.StatusInformation); i++ {
 		si := sr.StatusInformation[i]
 		sip := StatusInformationPos(i)
@@ -352,11 +353,11 @@ func (sr *StatusReport) UnmarshalCbor(r io.Reader) error {
 	return nil
 }
 
-func (sr *StatusReport) RecordTypeCode() uint64 {
+func (sr *StatusReport) RecordType() AdminRecordType {
 	return AdminRecordTypeStatusReport
 }
 
-func (sr StatusReport) String() string {
+func (sr *StatusReport) String() string {
 	var b strings.Builder
 	_, _ = fmt.Fprintf(&b, "StatusReport([")
 

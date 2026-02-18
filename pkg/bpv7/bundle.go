@@ -350,7 +350,7 @@ func (b *Bundle) AdministrativeRecord() (AdministrativeRecord, error) {
 	}
 
 	buff := bytes.NewBuffer(b.PayloadBlock.Value.(*PayloadBlock).Data())
-	return GetAdministrativeRecordManager().ReadAdministrativeRecord(buff)
+	return ReadAdministrativeRecord(buff)
 }
 
 // MarshalCbor writes this Bundle's CBOR representation.

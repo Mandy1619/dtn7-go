@@ -434,7 +434,7 @@ func (bldr *BundleBuilder) AdministrativeRecord(ar AdministrativeRecord) *Bundle
 	}
 
 	buff := new(bytes.Buffer)
-	if bldr.err = GetAdministrativeRecordManager().WriteAdministrativeRecord(ar, buff); bldr.err != nil {
+	if bldr.err = WriteAdministrativeRecord(ar, buff); bldr.err != nil {
 		return bldr
 	}
 
