@@ -115,7 +115,7 @@ func (cb *CanonicalBlock) MarshalCbor(w io.Writer) error {
 		}
 	}
 
-	if err := GetExtensionBlockManager().WriteBlock(cb.Value, w); err != nil {
+	if err := WriteBlock(cb.Value, w); err != nil {
 		return fmt.Errorf("marshalling value failed: %v", err)
 	}
 
@@ -205,7 +205,7 @@ func (cb *CanonicalBlock) UnmarshalWantedBlock(r io.Reader, wantedBlocks []Block
 		return false, nil
 	}
 
-	if b, err := GetExtensionBlockManager().ReadBlock(blockType, r); err != nil {
+	if b, err := ReadBlock(blockType, r); err != nil {
 		return true, fmt.Errorf("unmarshalling block type %d failed: %v", blockType, err)
 	} else {
 		cb.Value = b
@@ -272,7 +272,7 @@ func (cb *CanonicalBlock) UnmarshalCbor(r io.Reader) error {
 		cb.CRCType = CRCType(crcT)
 	}
 
-	if b, err := GetExtensionBlockManager().ReadBlock(blockType, r); err != nil {
+	if b, err := ReadBlock(blockType, r); err != nil {
 		return fmt.Errorf("unmarshalling block type %d failed: %v", blockType, err)
 	} else {
 		cb.Value = b
@@ -301,7 +301,7 @@ func (cb *CanonicalBlock) MarshalJSON() ([]byte, error) {
 		dataField = cb.Value
 	} else {
 		var buff bytes.Buffer
-		if err := GetExtensionBlockManager().WriteBlock(cb.Value, &buff); err != nil {
+		if err := WriteBlock(cb.Value, &buff); err != nil {
 			return nil, err
 		}
 		dataField = buff.Bytes()

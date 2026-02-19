@@ -133,12 +133,6 @@ func TestSignatureBlockCborSimple(t *testing.T) {
 }
 
 func TestSignatureBlockIntegration(t *testing.T) {
-	// By default, the SignatureBlock is not registered in the singleton ExtensionManager
-	if regErr := GetExtensionBlockManager().Register(&SignatureBlock{}); regErr != nil {
-		t.Fatal(regErr)
-	}
-	defer GetExtensionBlockManager().Unregister(&SignatureBlock{})
-
 	b1, bErr := Builder().
 		CRC(CRC32).
 		Source("dtn://src/").

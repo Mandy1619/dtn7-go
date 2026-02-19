@@ -11,8 +11,6 @@ import (
 	"encoding"
 	"fmt"
 	"io"
-	"reflect"
-	"sync"
 
 	"github.com/dtn7/cboring"
 )
@@ -38,74 +36,31 @@ type ExtensionBlock interface {
 	BlockTypeName() string
 }
 
-// ExtensionBlockManager keeps a book on various types of ExtensionBlocksByType that
-// can be changed at runtime. Thus, new ExtensionBlocksByType can be created based on
-// their block type code.
-//
-// A singleton ExtensionBlockManager can be fetched by GetExtensionBlockManager.
-type ExtensionBlockManager struct {
-	data  map[BlockType]reflect.Type
-	mutex sync.Mutex
-}
-
-// NewExtensionBlockManager creates an empty ExtensionBlockManager. To use a
-// singleton ExtensionBlockManager one can use GetExtensionBlockManager.
-func NewExtensionBlockManager() *ExtensionBlockManager {
-	return &ExtensionBlockManager{
-		data: make(map[BlockType]reflect.Type),
-	}
-}
-
-// Register a new ExtensionBlock type through an exemplary instance.
-func (ebm *ExtensionBlockManager) Register(eb ExtensionBlock) error {
-	ebm.mutex.Lock()
-	defer ebm.mutex.Unlock()
-
-	extCode := eb.BlockTypeCode()
-	extType := reflect.TypeOf(eb).Elem()
-
-	if extType == reflect.TypeOf((*GenericExtensionBlock)(nil)).Elem() {
-		return fmt.Errorf("not allowed to register a GenericExtensionBlock")
-	}
-
-	if otherType, exists := ebm.data[extCode]; exists {
-		return fmt.Errorf("block type code %d is already registered for %s",
-			extCode, otherType.Name())
-	}
-
-	ebm.data[extCode] = extType
-	return nil
-}
-
-// Unregister an ExtensionBlock type through an exemplary instance.
-func (ebm *ExtensionBlockManager) Unregister(eb ExtensionBlock) {
-	ebm.mutex.Lock()
-	defer ebm.mutex.Unlock()
-
-	delete(ebm.data, eb.BlockTypeCode())
-}
-
-// IsKnown returns true if the ExtensionBlock for this block type code is known.
-func (ebm *ExtensionBlockManager) IsKnown(typeCode BlockType) bool {
-	ebm.mutex.Lock()
-	defer ebm.mutex.Unlock()
-
-	_, known := ebm.data[typeCode]
-	return known
-}
-
-// createBlock returns either a specific ExtensionBlock or, if type code is not registered, an GenericExtensionBlock.
-func (ebm *ExtensionBlockManager) createBlock(typeCode BlockType) ExtensionBlock {
-	if extType, exists := ebm.data[typeCode]; exists {
-		return reflect.New(extType).Interface().(ExtensionBlock)
-	} else {
+// createBlock returns either a specific ExtensionBlock or, if type code is unknown, an GenericExtensionBlock.
+func createBlock(typeCode BlockType) ExtensionBlock {
+	switch typeCode {
+	case BlockTypePayloadBlock:
+		return &PayloadBlock{}
+	case BlockTypePreviousNodeBlock:
+		return &PreviousNodeBlock{}
+	case BlockTypeBundleAgeBlock:
+		b := BundleAgeBlock(0)
+		return &b
+	case BlockTypeHopCountBlock:
+		return &HopCountBlock{}
+	case BlockTypeBinarySprayBlock:
+		b := BinarySprayBlock(0)
+		return &b
+	case BlockTypeSignatureBlock:
+		return &SignatureBlock{}
+	default:
 		return &GenericExtensionBlock{typeCode: typeCode}
 	}
 }
 
 // WriteBlock writes an ExtensionBlock in its correct binary format into the io.Writer.
 // Unknown block types are treated as GenericExtensionBlock.
-func (ebm *ExtensionBlockManager) WriteBlock(b ExtensionBlock, w io.Writer) error {
+func WriteBlock(b ExtensionBlock, w io.Writer) error {
 	switch b := b.(type) {
 	case encoding.BinaryMarshaler:
 		if data, err := b.MarshalBinary(); err != nil {
@@ -128,8 +83,8 @@ func (ebm *ExtensionBlockManager) WriteBlock(b ExtensionBlock, w io.Writer) erro
 
 // ReadBlock reads an ExtensionBlock from its correct binary format from the io.Reader.
 // Unknown block types are treated as GenericExtensionBlock.
-func (ebm *ExtensionBlockManager) ReadBlock(typeCode BlockType, r io.Reader) (b ExtensionBlock, err error) {
-	b = ebm.createBlock(typeCode)
+func ReadBlock(typeCode BlockType, r io.Reader) (b ExtensionBlock, err error) {
+	b = createBlock(typeCode)
 
 	switch b := b.(type) {
 	case encoding.BinaryUnmarshaler:
@@ -152,28 +107,4 @@ func (ebm *ExtensionBlockManager) ReadBlock(typeCode BlockType, r io.Reader) (b 
 	}
 
 	return
-}
-
-var (
-	extensionBlockManager      *ExtensionBlockManager
-	extensionBlockManagerMutex sync.Mutex
-)
-
-// GetExtensionBlockManager returns the singleton ExtensionBlockManager. If none
-// exists, a new ExtensionBlockManager will be generated with a knowledge of the
-// PayloadBlock, PreviousNodeBlock, BundleAgeBlock and HopCountBlock.
-func GetExtensionBlockManager() *ExtensionBlockManager {
-	extensionBlockManagerMutex.Lock()
-	defer extensionBlockManagerMutex.Unlock()
-
-	if extensionBlockManager == nil {
-		extensionBlockManager = NewExtensionBlockManager()
-
-		_ = extensionBlockManager.Register(NewPayloadBlock(nil))
-		_ = extensionBlockManager.Register(NewPreviousNodeBlock(DtnNone()))
-		_ = extensionBlockManager.Register(NewBundleAgeBlock(0))
-		_ = extensionBlockManager.Register(NewHopCountBlock(0))
-	}
-
-	return extensionBlockManager
 }
