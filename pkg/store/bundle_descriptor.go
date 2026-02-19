@@ -19,7 +19,8 @@ type BundleMetadata struct {
 	IsAdministrativeRecord   bool
 	AdministrativeRecordType bpv7.AdminRecordType
 	// MiscellaneousData is arbitrary additional data that components of dtnd want to associate with this bundle
-	MiscellaneousData map[string]interface{}
+	// IMPORTANT: If you want to store custom datatypes, you need to register them with gob.Register
+	MiscellaneousData map[string]any
 
 	// Bundle's ID in string-form. Used as the database primary-key. Return-value of ID.String()
 	IDString string `badgerhold:"key"`
@@ -84,7 +85,7 @@ func (bd *BundleDescriptor) Metadata() (BundleMetadata, error) {
 }
 
 // GetMiscData retrieves value from bundle's miscellaneous data
-func (bd *BundleDescriptor) GetMiscData(key string) (interface{}, bool) {
+func (bd *BundleDescriptor) GetMiscData(key string) (any, bool) {
 	bd.stateMutex.RLock()
 	defer bd.stateMutex.RUnlock()
 
@@ -93,7 +94,8 @@ func (bd *BundleDescriptor) GetMiscData(key string) (interface{}, bool) {
 }
 
 // SetMiscData adds key-value pair to bundle's miscellaneous data
-func (bd *BundleDescriptor) SetMiscData(key string, value interface{}) error {
+// IMPORTANT: If you want to store custom datatypes, you need to register them with gob.Register
+func (bd *BundleDescriptor) SetMiscData(key string, value any) error {
 	bd.stateMutex.Lock()
 	defer bd.stateMutex.Unlock()
 
