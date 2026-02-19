@@ -28,7 +28,7 @@ func NewBinarySprayBlock(copies uint64) *BinarySprayBlock {
 	return &newBlock
 }
 
-func (bsb *BinarySprayBlock) BlockTypeCode() uint64 {
+func (bsb *BinarySprayBlock) BlockTypeCode() BlockType {
 	return BlockTypeBinarySprayBlock
 }
 

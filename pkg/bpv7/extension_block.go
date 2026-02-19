@@ -32,7 +32,7 @@ type ExtensionBlock interface {
 	CheckContextValid(*Bundle) error
 
 	// BlockTypeCode must return a constant integer, indicating the block type code.
-	BlockTypeCode() uint64
+	BlockTypeCode() BlockType
 
 	// BlockTypeName must return a constant string, this block's name.
 	BlockTypeName() string
@@ -44,7 +44,7 @@ type ExtensionBlock interface {
 //
 // A singleton ExtensionBlockManager can be fetched by GetExtensionBlockManager.
 type ExtensionBlockManager struct {
-	data  map[uint64]reflect.Type
+	data  map[BlockType]reflect.Type
 	mutex sync.Mutex
 }
 
@@ -52,7 +52,7 @@ type ExtensionBlockManager struct {
 // singleton ExtensionBlockManager one can use GetExtensionBlockManager.
 func NewExtensionBlockManager() *ExtensionBlockManager {
 	return &ExtensionBlockManager{
-		data: make(map[uint64]reflect.Type),
+		data: make(map[BlockType]reflect.Type),
 	}
 }
 
@@ -86,7 +86,7 @@ func (ebm *ExtensionBlockManager) Unregister(eb ExtensionBlock) {
 }
 
 // IsKnown returns true if the ExtensionBlock for this block type code is known.
-func (ebm *ExtensionBlockManager) IsKnown(typeCode uint64) bool {
+func (ebm *ExtensionBlockManager) IsKnown(typeCode BlockType) bool {
 	ebm.mutex.Lock()
 	defer ebm.mutex.Unlock()
 
@@ -95,7 +95,7 @@ func (ebm *ExtensionBlockManager) IsKnown(typeCode uint64) bool {
 }
 
 // createBlock returns either a specific ExtensionBlock or, if type code is not registered, an GenericExtensionBlock.
-func (ebm *ExtensionBlockManager) createBlock(typeCode uint64) ExtensionBlock {
+func (ebm *ExtensionBlockManager) createBlock(typeCode BlockType) ExtensionBlock {
 	if extType, exists := ebm.data[typeCode]; exists {
 		return reflect.New(extType).Interface().(ExtensionBlock)
 	} else {
@@ -128,7 +128,7 @@ func (ebm *ExtensionBlockManager) WriteBlock(b ExtensionBlock, w io.Writer) erro
 
 // ReadBlock reads an ExtensionBlock from its correct binary format from the io.Reader.
 // Unknown block types are treated as GenericExtensionBlock.
-func (ebm *ExtensionBlockManager) ReadBlock(typeCode uint64, r io.Reader) (b ExtensionBlock, err error) {
+func (ebm *ExtensionBlockManager) ReadBlock(typeCode BlockType, r io.Reader) (b ExtensionBlock, err error) {
 	b = ebm.createBlock(typeCode)
 
 	switch b := b.(type) {

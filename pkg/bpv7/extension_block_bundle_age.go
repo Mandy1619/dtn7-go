@@ -16,7 +16,7 @@ import (
 type BundleAgeBlock uint64
 
 // BlockTypeCode must return a constant integer, indicating the block type code.
-func (bab *BundleAgeBlock) BlockTypeCode() uint64 {
+func (bab *BundleAgeBlock) BlockTypeCode() BlockType {
 	return BlockTypeBundleAgeBlock
 }
 

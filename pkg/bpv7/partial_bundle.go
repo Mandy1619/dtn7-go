@@ -57,7 +57,7 @@ func FindExtensionBlock[T ExtensionBlock](partialBundle *PartialBundle, eb *T) e
 
 // ExtensionBlocksByType returns all this Bundle's canonical extension blocks which match the requested block type code.
 // If no such block was found, an error will be returned.
-func (b *PartialBundle) ExtensionBlocksByType(blockType uint64) (cbs []*CanonicalBlock, err error) {
+func (b *PartialBundle) ExtensionBlocksByType(blockType BlockType) (cbs []*CanonicalBlock, err error) {
 	for i := 0; i < len(b.ExtensionBlocks); i++ {
 		cb := &b.ExtensionBlocks[i]
 		if cb.TypeCode() == blockType {
@@ -74,7 +74,7 @@ func (b *PartialBundle) ExtensionBlocksByType(blockType uint64) (cbs []*Canonica
 
 // ExtensionBlockByType returns the first Canonical Block which matches the requested type code.
 // If there is no such Block an error will be returned.
-func (b *PartialBundle) ExtensionBlockByType(blockType uint64) (*CanonicalBlock, error) {
+func (b *PartialBundle) ExtensionBlockByType(blockType BlockType) (*CanonicalBlock, error) {
 	for _, extensionBlock := range b.ExtensionBlocks {
 		if extensionBlock.TypeCode() == blockType {
 			return &extensionBlock, nil
@@ -84,7 +84,7 @@ func (b *PartialBundle) ExtensionBlockByType(blockType uint64) (*CanonicalBlock,
 }
 
 // HasExtensionBlock checks if a ExtensionBlock for some block type number is present.
-func (b *PartialBundle) HasExtensionBlock(blockType uint64) bool {
+func (b *PartialBundle) HasExtensionBlock(blockType BlockType) bool {
 	_, err := b.ExtensionBlocksByType(blockType)
 	return err == nil
 }
@@ -133,7 +133,7 @@ func (b *PartialBundle) AddExtensionBlock(block CanonicalBlock) error {
 }
 
 // RemoveExtensionBlocks removes all ExtensionBlocks with the given blockType.
-func (b *PartialBundle) RemoveExtensionBlocks(blockType uint64) {
+func (b *PartialBundle) RemoveExtensionBlocks(blockType BlockType) {
 	retain := make([]CanonicalBlock, 0, len(b.ExtensionBlocks))
 	for _, extensionBlock := range b.ExtensionBlocks {
 		if extensionBlock.Value.BlockTypeCode() != blockType {
@@ -144,7 +144,7 @@ func (b *PartialBundle) RemoveExtensionBlocks(blockType uint64) {
 }
 
 // ParsePartialBundle  reads the specified parts of a CBOR encoded Bundle from a Reader ito a PartialBundle.
-func ParsePartialBundle(r io.Reader, wantedExtensionBlocks []uint64) (*PartialBundle, error) {
+func ParsePartialBundle(r io.Reader, wantedExtensionBlocks []BlockType) (*PartialBundle, error) {
 	var primary PrimaryBlock
 	var extensionBlocks []CanonicalBlock
 	if err := cboring.ReadExpect(cboring.IndefiniteArray, r); err != nil {

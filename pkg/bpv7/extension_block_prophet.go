@@ -32,7 +32,7 @@ func (pBlock *ProphetBlock) GetPredictabilities() map[EndpointID]float64 {
 	return *pBlock
 }
 
-func (pBlock *ProphetBlock) BlockTypeCode() uint64 {
+func (pBlock *ProphetBlock) BlockTypeCode() BlockType {
 	return BlockTypeProphetBlock
 }
 
@@ -40,11 +40,11 @@ func (pBlock *ProphetBlock) BlockTypeName() string {
 	return "Prophet Routing Block"
 }
 
-func (pBlock ProphetBlock) CheckValid() error {
+func (pBlock *ProphetBlock) CheckValid() error {
 	return nil
 }
 
-func (pBlock ProphetBlock) CheckContextValid(*Bundle) error {
+func (pBlock *ProphetBlock) CheckContextValid(*Bundle) error {
 	return nil
 }
 

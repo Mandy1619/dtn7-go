@@ -16,14 +16,14 @@ func (cbns canonicalBlockNumberSort) Len() int {
 	return len(cbns)
 }
 
-// Less is true iff element i should be sort before element j.
+// Less is true iff element i should be sorted before element j.
 //
 // Thus, if element i is a Payload Block, this function returns false because this block must always be the last one,
 // et vice versa. Otherwise, the block numbers are compared in ascending order.
 func (cbns canonicalBlockNumberSort) Less(i, j int) bool {
-	if cbns[i].BlockNumber == BlockTypePayloadBlock {
+	if cbns[i].BlockNumber == 1 {
 		return false
-	} else if cbns[j].BlockNumber == BlockTypePayloadBlock {
+	} else if cbns[j].BlockNumber == 1 {
 		return true
 	} else {
 		return cbns[i].BlockNumber < cbns[j].BlockNumber

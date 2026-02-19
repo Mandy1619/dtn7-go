@@ -16,7 +16,7 @@ import (
 type PreviousNodeBlock EndpointID
 
 // BlockTypeCode must return a constant integer, indicating the block type code.
-func (pnb *PreviousNodeBlock) BlockTypeCode() uint64 {
+func (pnb *PreviousNodeBlock) BlockTypeCode() BlockType {
 	return BlockTypePreviousNodeBlock
 }
 

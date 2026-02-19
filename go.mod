@@ -6,8 +6,8 @@ require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/akamensky/argparse v1.4.0
 	github.com/dtn7/cboring v0.1.6
-	github.com/google/go-cmp v0.7.0
 	github.com/go-co-op/gocron/v2 v2.19.0
+	github.com/google/go-cmp v0.7.0
 	github.com/gorilla/mux v1.8.1
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/howeyc/crc16 v0.0.0-20171223171357-2b2a61e366a6

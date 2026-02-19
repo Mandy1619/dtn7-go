@@ -70,7 +70,7 @@ func (b *Bundle) forEachBlock(f func(block)) {
 
 // ExtensionBlocksByType returns all this Bundle's canonical block/extension blocks
 // matching the requested block type code. If no such block was found, an error will be returned.
-func (b *Bundle) ExtensionBlocksByType(blockType uint64) (cbs []*CanonicalBlock, err error) {
+func (b *Bundle) ExtensionBlocksByType(blockType BlockType) (cbs []*CanonicalBlock, err error) {
 	for i := 0; i < len(b.ExtensionBlocks); i++ {
 		cb := &b.ExtensionBlocks[i]
 		if cb.TypeCode() == blockType {
@@ -87,7 +87,7 @@ func (b *Bundle) ExtensionBlocksByType(blockType uint64) (cbs []*CanonicalBlock,
 
 // ExtensionBlockByType returns a Canonical Block for the requested type code.
 // If there is no such Block or more than exactly one Block, an error will be returned.
-func (b *Bundle) ExtensionBlockByType(blockType uint64) (*CanonicalBlock, error) {
+func (b *Bundle) ExtensionBlockByType(blockType BlockType) (*CanonicalBlock, error) {
 	cbs, err := b.ExtensionBlocksByType(blockType)
 
 	if err != nil {
@@ -100,7 +100,7 @@ func (b *Bundle) ExtensionBlockByType(blockType uint64) (*CanonicalBlock, error)
 }
 
 // HasExtensionBlock checks if a ExtensionBlock for some block type number is present.
-func (b *Bundle) HasExtensionBlock(blockType uint64) bool {
+func (b *Bundle) HasExtensionBlock(blockType BlockType) bool {
 	_, err := b.ExtensionBlocksByType(blockType)
 	return err == nil
 }
@@ -343,7 +343,7 @@ func (b *Bundle) UnmarshalCbor(r io.Reader) error {
 func (b *Bundle) MarshalJSON() ([]byte, error) {
 	extensions := make([]json.Marshaler, len(b.ExtensionBlocks))
 	for i := range b.ExtensionBlocks {
-		extensions[i] = b.ExtensionBlocks[i]
+		extensions[i] = &b.ExtensionBlocks[i]
 	}
 
 	return json.Marshal(&struct {
@@ -353,6 +353,6 @@ func (b *Bundle) MarshalJSON() ([]byte, error) {
 	}{
 		PrimaryBlock:    b.PrimaryBlock,
 		ExtensionBlocks: extensions,
-		PayloadBlock:    b.PayloadBlock,
+		PayloadBlock:    &b.PayloadBlock,
 	})
 }

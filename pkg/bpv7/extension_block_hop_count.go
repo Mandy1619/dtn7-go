@@ -19,7 +19,7 @@ type HopCountBlock struct {
 }
 
 // BlockTypeCode must return a constant integer, indicating the block type code.
-func (hcb *HopCountBlock) BlockTypeCode() uint64 {
+func (hcb *HopCountBlock) BlockTypeCode() BlockType {
 	return BlockTypeHopCountBlock
 }
 
@@ -37,7 +37,7 @@ func NewHopCountBlock(limit uint8) *HopCountBlock {
 }
 
 // IsExceeded returns true if the hop limit exceeded.
-func (hcb HopCountBlock) IsExceeded() bool {
+func (hcb *HopCountBlock) IsExceeded() bool {
 	return hcb.Count > hcb.Limit
 }
 

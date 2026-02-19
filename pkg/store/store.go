@@ -206,7 +206,7 @@ func (bst *BundleStore) loadEntireBundle(filename string) (*bpv7.Bundle, error) 
 	return bundle, nil
 }
 
-func (bst *BundleStore) loadPartialBundle(filename string, wantedBlocks []uint64) (*bpv7.PartialBundle, error) {
+func (bst *BundleStore) loadPartialBundle(filename string, wantedBlocks []bpv7.BlockType) (*bpv7.PartialBundle, error) {
 	path := filepath.Join(bst.bundleDirectory, filename)
 	f, err := os.Open(path)
 	if err != nil {

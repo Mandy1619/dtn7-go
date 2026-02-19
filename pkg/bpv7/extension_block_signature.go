@@ -40,7 +40,7 @@ type SignatureBlock struct {
 }
 
 // BlockTypeCode must return a constant integer, indicating the block type code.
-func (s *SignatureBlock) BlockTypeCode() uint64 {
+func (s *SignatureBlock) BlockTypeCode() BlockType {
 	return BlockTypeSignatureBlock
 }
 

@@ -120,7 +120,7 @@ func (bd *BundleDescriptor) Load() (*bpv7.Bundle, error) {
 // LoadPartialBundle loads at most one of each of the blocks with the types in wantedBlocks
 // this may be useful when the full bundle is not needed and the specified blocks exist at most once
 // because it may not require the whole bundle to be loaded
-func (bd *BundleDescriptor) LoadPartialBundle(wantedBlocks ...uint64) (*bpv7.PartialBundle, error) {
+func (bd *BundleDescriptor) LoadPartialBundle(wantedBlocks ...bpv7.BlockType) (*bpv7.PartialBundle, error) {
 	bd.stateMutex.RLock()
 	defer bd.stateMutex.RUnlock()
 

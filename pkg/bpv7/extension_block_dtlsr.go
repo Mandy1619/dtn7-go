@@ -54,7 +54,7 @@ func (dtlsrb *DTLSRBlock) GetPeerData() DTLSRPeerData {
 	return DTLSRPeerData(*dtlsrb)
 }
 
-func (dtlsrb *DTLSRBlock) BlockTypeCode() uint64 {
+func (dtlsrb *DTLSRBlock) BlockTypeCode() BlockType {
 	return BlockTypeDTLSRBlock
 }
 

@@ -47,7 +47,7 @@ func TestExtensionBlockManagerRWBlock(t *testing.T) {
 	tests := []struct {
 		from     ExtensionBlock
 		to       []byte
-		typeCode uint64
+		typeCode BlockType
 	}{
 		// CBOR; wrapped within a CBOR byte string
 		{NewBundleAgeBlock(23), []byte{0x41, 0x17}, BlockTypeBundleAgeBlock},

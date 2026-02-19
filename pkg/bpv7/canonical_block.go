@@ -16,37 +16,39 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
+type BlockType uint64
+
 // Sorted list of all known block type codes to prevent double usage.
 const (
 	// BlockTypePayloadBlock is the block type code for a Payload Block, bpv7/payload_block.go
-	BlockTypePayloadBlock uint64 = 1
+	BlockTypePayloadBlock BlockType = 1
 
 	// BlockTypeBlockIntegrityBlock is the block type code for an Integrity Block
-	BlockTypeBlockIntegrityBlock uint64 = 3
+	BlockTypeBlockIntegrityBlock BlockType = 3
 
 	// BlockTypeBlockConfidentialityBlock is the block type code for a Confidentiality Block
-	BlockTypeBlockConfidentialityBlock uint64 = 4
+	BlockTypeBlockConfidentialityBlock BlockType = 4
 
 	// BlockTypePreviousNodeBlock is the block type code for a Previous Node Block, bpv7/extension_block_previous_node.go
-	BlockTypePreviousNodeBlock uint64 = 6
+	BlockTypePreviousNodeBlock BlockType = 6
 
 	// BlockTypeBundleAgeBlock is the block type code for a Bundle Age Block, bpv7/extension_block_bundle_age.go
-	BlockTypeBundleAgeBlock uint64 = 7
+	BlockTypeBundleAgeBlock BlockType = 7
 
 	// BlockTypeHopCountBlock is the block type code for a Hop Count Block, bpv7/extension_block_hop_count.go
-	BlockTypeHopCountBlock uint64 = 10
+	BlockTypeHopCountBlock BlockType = 10
 
 	// BlockTypeBinarySprayBlock is the custom block type code for a BinarySprayBlock, bpv7/extension_block_spray.go
-	BlockTypeBinarySprayBlock uint64 = 192
+	BlockTypeBinarySprayBlock BlockType = 192
 
 	// BlockTypeDTLSRBlock is the custom block type code for a DTLSRBlock, bpv7/extension_block_dtlsr.go
-	BlockTypeDTLSRBlock uint64 = 193
+	BlockTypeDTLSRBlock BlockType = 193
 
 	// BlockTypeProphetBlock is the custom block type code for a ProphetBlock, bpv7/extension_block_prophet.go
-	BlockTypeProphetBlock uint64 = 194
+	BlockTypeProphetBlock BlockType = 194
 
 	// BlockTypeSignatureBlock is the custom block type code for a SignatureBlock, bpv7/extension_block_signature.go
-	BlockTypeSignatureBlock uint64 = 195
+	BlockTypeSignatureBlock BlockType = 195
 )
 
 // CanonicalBlock represents the canonical bundle block defined in section 4.3.2
@@ -70,17 +72,17 @@ func NewCanonicalBlock(no uint64, bcf BlockControlFlags, value ExtensionBlock) C
 }
 
 // TypeCode returns the block type code.
-func (cb CanonicalBlock) TypeCode() uint64 {
+func (cb *CanonicalBlock) TypeCode() BlockType {
 	return cb.Value.BlockTypeCode()
 }
 
 // HasCRC returns if the CRCType indicates a CRC is present for this block.
-func (cb CanonicalBlock) HasCRC() bool {
+func (cb *CanonicalBlock) HasCRC() bool {
 	return cb.GetCRCType() != CRCNo
 }
 
 // GetCRCType returns the CRCType of this block.
-func (cb CanonicalBlock) GetCRCType() CRCType {
+func (cb *CanonicalBlock) GetCRCType() CRCType {
 	return cb.CRCType
 }
 
@@ -105,7 +107,7 @@ func (cb *CanonicalBlock) MarshalCbor(w io.Writer) error {
 		return err
 	}
 
-	fields := []uint64{cb.TypeCode(), cb.BlockNumber,
+	fields := []uint64{uint64(cb.TypeCode()), cb.BlockNumber,
 		uint64(cb.BlockControlFlags), uint64(cb.CRCType)}
 	for _, f := range fields {
 		if err := cboring.WriteUInt(f, w); err != nil {
@@ -133,7 +135,7 @@ func (cb *CanonicalBlock) MarshalCbor(w io.Writer) error {
 // UnmarshalWantedBlock creates this Canonical Block based on a CBOR representation if the type code is in
 // wantedBlocks and returns true.
 // otherwise it returns false and fills the Value field with a generic block with the correct type code
-func (cb *CanonicalBlock) UnmarshalWantedBlock(r io.Reader, wantedBlocks []uint64) (bool, error) {
+func (cb *CanonicalBlock) UnmarshalWantedBlock(r io.Reader, wantedBlocks []BlockType) (bool, error) {
 	var blockLen uint64
 	if bl, err := cboring.ReadArrayLength(r); err != nil {
 		return false, err
@@ -153,11 +155,11 @@ func (cb *CanonicalBlock) UnmarshalWantedBlock(r io.Reader, wantedBlocks []uint6
 		r = io.TeeReader(r, crcBuff)
 	}
 
-	var blockType uint64
+	var blockType BlockType
 	if bt, err := cboring.ReadUInt(r); err != nil {
 		return false, err
 	} else {
-		blockType = bt
+		blockType = BlockType(bt)
 	}
 
 	if bn, err := cboring.ReadUInt(r); err != nil {
@@ -245,11 +247,11 @@ func (cb *CanonicalBlock) UnmarshalCbor(r io.Reader) error {
 		r = io.TeeReader(r, crcBuff)
 	}
 
-	var blockType uint64
+	var blockType BlockType
 	if bt, err := cboring.ReadUInt(r); err != nil {
 		return err
 	} else {
-		blockType = bt
+		blockType = BlockType(bt)
 	}
 
 	if bn, err := cboring.ReadUInt(r); err != nil {
@@ -292,7 +294,7 @@ func (cb *CanonicalBlock) UnmarshalCbor(r io.Reader) error {
 }
 
 // MarshalJSON writes a JSON object for this Canonical Block.
-func (cb CanonicalBlock) MarshalJSON() ([]byte, error) {
+func (cb *CanonicalBlock) MarshalJSON() ([]byte, error) {
 	var dataField interface{}
 
 	if _, ok := cb.Value.(json.Marshaler); ok {
@@ -307,7 +309,7 @@ func (cb CanonicalBlock) MarshalJSON() ([]byte, error) {
 
 	return json.Marshal(&struct {
 		BlockNumber   uint64            `json:"blockNumber"`
-		BlockTypeCode uint64            `json:"blockTypeCode"`
+		BlockTypeCode BlockType         `json:"blockTypeCode"`
 		BlockType     string            `json:"blockType"`
 		ControlFlags  BlockControlFlags `json:"blockControlFlags"`
 		Data          interface{}       `json:"data"`
@@ -321,7 +323,7 @@ func (cb CanonicalBlock) MarshalJSON() ([]byte, error) {
 }
 
 // CheckValid returns an array of errors for incorrect data.
-func (cb CanonicalBlock) CheckValid() (errs error) {
+func (cb *CanonicalBlock) CheckValid() (errs error) {
 	if bcfErr := cb.BlockControlFlags.CheckValid(); bcfErr != nil {
 		errs = multierror.Append(errs, bcfErr)
 	}
@@ -338,7 +340,7 @@ func (cb CanonicalBlock) CheckValid() (errs error) {
 	return
 }
 
-func (cb CanonicalBlock) String() string {
+func (cb *CanonicalBlock) String() string {
 	var b strings.Builder
 
 	_, _ = fmt.Fprintf(&b, "block type code: %d, ", cb.Value.BlockTypeCode())

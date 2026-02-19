@@ -7,11 +7,11 @@ package bpv7
 // GenericExtensionBlock is a dummy ExtensionBlock to cover for unknown or unregistered ExtensionBlocksByType.
 type GenericExtensionBlock struct {
 	data     []byte
-	typeCode uint64
+	typeCode BlockType
 }
 
 // NewGenericExtensionBlock creates a new GenericExtensionBlock from some payload and a block type code.
-func NewGenericExtensionBlock(data []byte, typeCode uint64) *GenericExtensionBlock {
+func NewGenericExtensionBlock(data []byte, typeCode BlockType) *GenericExtensionBlock {
 	return &GenericExtensionBlock{
 		data:     data,
 		typeCode: typeCode,
@@ -42,7 +42,7 @@ func (geb *GenericExtensionBlock) CheckContextValid(*Bundle) error {
 }
 
 // BlockTypeCode must return a constant integer, indicating the block type code.
-func (geb *GenericExtensionBlock) BlockTypeCode() uint64 {
+func (geb *GenericExtensionBlock) BlockTypeCode() BlockType {
 	return geb.typeCode
 }
 

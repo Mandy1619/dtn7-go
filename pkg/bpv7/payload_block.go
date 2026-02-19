@@ -10,7 +10,7 @@ import "encoding/json"
 type PayloadBlock []byte
 
 // BlockTypeCode must return a constant integer, indicating the block type code.
-func (pb *PayloadBlock) BlockTypeCode() uint64 {
+func (pb *PayloadBlock) BlockTypeCode() BlockType {
 	return BlockTypePayloadBlock
 }
 
