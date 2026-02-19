@@ -2,6 +2,7 @@ package routing
 
 import (
 	"math/rand"
+	"sync"
 
 	log "github.com/sirupsen/logrus"
 
@@ -19,6 +20,8 @@ type SprayAndWait struct {
 	copies uint64
 	// whether to run in binary-mode
 	binary bool
+
+	stateMutex sync.RWMutex
 }
 
 func NewSprayAndWait(copies uint64, binary bool) *SprayAndWait {
@@ -41,6 +44,9 @@ func (router *SprayAndWait) NotifyNewBundle(descriptor *store.BundleDescriptor, 
 }
 
 func (router *SprayAndWait) NotifyReceivedBundle(descriptor *store.BundleDescriptor, bundle *bpv7.Bundle) {
+	router.stateMutex.Lock()
+	defer router.stateMutex.Unlock()
+
 	log.WithField("bundle", descriptor.ID()).Debug("Spray&Wait handling received bundle")
 	log.WithField("bundle", descriptor.ID()).Debug("Checking for BinarySprayBlock")
 	block, err := bundle.ExtensionBlockByType(bpv7.BlockTypeBinarySprayBlock)
@@ -66,6 +72,18 @@ func (router *SprayAndWait) NotifyReceivedAdministrativeRecord(_ *bpv7.Bundle) b
 
 func (router *SprayAndWait) SelectPeersForForwarding(descriptor *store.BundleDescriptor, peers []cla.ConvergenceSender) ([]cla.ConvergenceSender, *bpv7.Bundle) {
 	log.WithField("bundle", descriptor.ID()).Debug("Spray&Wait selecting peers for forwarding")
+
+	// check if the bundle has any copies left before we try anything else
+	if !router.hasCopiesLeft(descriptor) {
+		return []cla.ConvergenceSender{}, nil
+	}
+
+	router.stateMutex.Lock()
+	defer router.stateMutex.Unlock()
+
+	// yes, we are getting the same value as before, but we need to make sure someone else didn't change it in the meantime
+	// Why do it above? RWMutex.Rlock() can accomodate multiple readers, so if we have a bundle whose copies have reached the cutoff
+	// then this will short-circuit and avoid us doing the more expensive write-lock
 	copies, ok := getSprayCopies(descriptor)
 	if !ok {
 		log.WithField("bundle", descriptor.ID()).Debug("Bundle had no saved copies, assuming default")
@@ -74,10 +92,10 @@ func (router *SprayAndWait) SelectPeersForForwarding(descriptor *store.BundleDes
 	}
 
 	if !router.binary && !(copies > 0) {
-		log.WithField("bundle", descriptor.ID()).Debug("Basic Spray stops at 0 copies remaining")
+		log.WithField("bundle", descriptor.ID()).Debug("Value changed since first check. Basic Spray stops at 0 copies remaining")
 		return []cla.ConvergenceSender{}, nil
 	} else if router.binary && !(copies > 1) {
-		log.WithField("bundle", descriptor.ID()).Debug("Binary Spray stops at 1 copy remaining")
+		log.WithField("bundle", descriptor.ID()).Debug("Value changed since first check. Binary Spray stops at 1 copy remaining")
 		return []cla.ConvergenceSender{}, nil
 	}
 
@@ -92,6 +110,25 @@ func (router *SprayAndWait) SelectPeersForForwarding(descriptor *store.BundleDes
 		return router.selectBinarySpray(descriptor, copies, peers)
 	} else {
 		return router.selectBasicSpray(descriptor, copies, peers, nPeers), nil
+	}
+}
+
+func (router *SprayAndWait) hasCopiesLeft(descriptor *store.BundleDescriptor) bool {
+	router.stateMutex.RLock()
+	defer router.stateMutex.RUnlock()
+
+	copies, present := getSprayCopies(descriptor)
+	if !present {
+		log.WithField("bundle", descriptor.ID()).Warn("Bundle has no saved number of copies. This shouldn't happen")
+		return false
+	}
+
+	if router.binary {
+		log.WithField("bundle", descriptor.ID()).Debug("Binary Spray stops at 1 copy remaining")
+		return copies > 1
+	} else {
+		log.WithField("bundle", descriptor.ID()).Debug("Basic Spray stops at 0 copies remaining")
+		return copies > 0
 	}
 }
 
