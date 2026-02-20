@@ -36,13 +36,18 @@ func (er *EpidemicRouting) NotifyReceivedAdministrativeRecord(_ *bpv7.Bundle) bo
 	return true
 }
 
-func (er *EpidemicRouting) SelectPeersForForwarding(descriptor *store.BundleDescriptor, peers []cla.ConvergenceSender) ([]cla.ConvergenceSender, *bpv7.Bundle) {
+func (er *EpidemicRouting) SelectPeersForForwarding(descriptor *store.BundleDescriptor, peers []cla.ConvergenceSender) []cla.ConvergenceSender {
 	peers = filterPeers(descriptor, peers)
 	log.WithFields(log.Fields{
 		"bundle": descriptor,
 		"peers":  peers,
 	}).Debug("EpidemicRouting selected peers for outgoing bundle")
-	return peers, nil
+	return peers
+}
+
+// ModifyHeaders does nothing for this algorithm
+func (er *EpidemicRouting) ModifyHeaders(_ *store.BundleDescriptor, _ *bpv7.PartialBundle, _ cla.ConvergenceSender) error {
+	return nil
 }
 
 func (_ *EpidemicRouting) NotifyPeerAppeared(_ bpv7.EndpointID) {}

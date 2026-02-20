@@ -1,7 +1,7 @@
 package routing
 
 import (
-	"math/rand"
+	"fmt"
 	"sync"
 
 	log "github.com/sirupsen/logrus"
@@ -20,14 +20,17 @@ type SprayAndWait struct {
 	copies uint64
 	// whether to run in binary-mode
 	binary bool
+	// stores fore each bundle and peer combination, how many copies should be forwarded
+	bundleCopies map[bpv7.BundleID]map[bpv7.EndpointID]uint64
 
 	stateMutex sync.RWMutex
 }
 
 func NewSprayAndWait(copies uint64, binary bool) *SprayAndWait {
 	router := SprayAndWait{
-		copies: copies,
-		binary: binary,
+		copies:       copies,
+		binary:       binary,
+		bundleCopies: make(map[bpv7.BundleID]map[bpv7.EndpointID]uint64),
 	}
 	return &router
 }
@@ -56,7 +59,7 @@ func (router *SprayAndWait) NotifyReceivedBundle(descriptor *store.BundleDescrip
 	} else {
 		// though the original paper does not specify either way,
 		// it seems sensible to honour the value of a BinarySprayBlock, even if we are not running in binary mode
-		copies := block.Value.(*bpv7.BinarySprayBlock).RemainingCopies()
+		copies := block.Value.(*bpv7.BinarySprayBlock).Copies()
 		log.WithFields(log.Fields{
 			"bundle": descriptor.ID(),
 			"copies": copies,
@@ -70,12 +73,12 @@ func (router *SprayAndWait) NotifyReceivedAdministrativeRecord(_ *bpv7.Bundle) b
 	return true
 }
 
-func (router *SprayAndWait) SelectPeersForForwarding(descriptor *store.BundleDescriptor, peers []cla.ConvergenceSender) ([]cla.ConvergenceSender, *bpv7.Bundle) {
+func (router *SprayAndWait) SelectPeersForForwarding(descriptor *store.BundleDescriptor, peers []cla.ConvergenceSender) []cla.ConvergenceSender {
 	log.WithField("bundle", descriptor.ID()).Debug("Spray&Wait selecting peers for forwarding")
 
 	// check if the bundle has any copies left before we try anything else
 	if !router.hasCopiesLeft(descriptor) {
-		return []cla.ConvergenceSender{}, nil
+		return []cla.ConvergenceSender{}
 	}
 
 	router.stateMutex.Lock()
@@ -93,23 +96,23 @@ func (router *SprayAndWait) SelectPeersForForwarding(descriptor *store.BundleDes
 
 	if !router.binary && !(copies > 0) {
 		log.WithField("bundle", descriptor.ID()).Debug("Value changed since first check. Basic Spray stops at 0 copies remaining")
-		return []cla.ConvergenceSender{}, nil
+		return []cla.ConvergenceSender{}
 	} else if router.binary && !(copies > 1) {
 		log.WithField("bundle", descriptor.ID()).Debug("Value changed since first check. Binary Spray stops at 1 copy remaining")
-		return []cla.ConvergenceSender{}, nil
+		return []cla.ConvergenceSender{}
 	}
 
 	peers = filterPeers(descriptor, peers)
 	nPeers := uint64(len(peers))
 	if !(nPeers > 0) {
 		log.WithField("bundle", descriptor.ID()).Debug("No suitable peers connected")
-		return []cla.ConvergenceSender{}, nil
+		return []cla.ConvergenceSender{}
 	}
 
 	if router.binary {
 		return router.selectBinarySpray(descriptor, copies, peers)
 	} else {
-		return router.selectBasicSpray(descriptor, copies, peers, nPeers), nil
+		return router.selectBasicSpray(descriptor, copies, peers, nPeers)
 	}
 }
 
@@ -154,66 +157,104 @@ func (router *SprayAndWait) selectBasicSpray(descriptor *store.BundleDescriptor,
 		"bundle":           descriptor.ID(),
 		"remaining copies": remainingCopies,
 		"selected peers":   selectedPeers,
-	}).Debug("Spray&Wait selected peers for forwarding")
+	}).Debug("Basic Spray selected peers for forwarding")
 	return selectedPeers
 }
 
 // selectBinarySpray runs the algorithm in binary mode
 // The originating node starts with l copies, and every time it forwards the bundle, it is tagged with n/2 copies, while the transmitting node keeps the other n/2 for itself
 // Since we need to modify the bundle and attach an appropriate extension block, we can only choose one peer per routing invocation.
-func (router *SprayAndWait) selectBinarySpray(descriptor *store.BundleDescriptor, copies uint64, peers []cla.ConvergenceSender) ([]cla.ConvergenceSender, *bpv7.Bundle) {
+func (router *SprayAndWait) selectBinarySpray(descriptor *store.BundleDescriptor, copies uint64, peers []cla.ConvergenceSender) []cla.ConvergenceSender {
 	log.WithField("bundle", descriptor.ID()).Debug("Spray&Wait running in binary mode")
 
-	sendCopies := copies / 2
-	retainedCopies := copies / 2
-	// if the number of copies is odd, we retain one more than we give away
-	if (copies % 2) != 0 {
-		retainedCopies += 1
+	bundleCopies, present := router.bundleCopies[descriptor.ID()]
+	if !present {
+		bundleCopies = make(map[bpv7.EndpointID]uint64)
+		router.bundleCopies[descriptor.ID()] = bundleCopies
 	}
 
-	log.WithFields(log.Fields{
-		"bundle":        descriptor.ID(),
-		"send copies":   sendCopies,
-		"retain copies": retainedCopies,
-	}).Debug("Spray&Wait: new copies")
-
-	bundle, err := descriptor.Load()
-	if err != nil {
+	selected := make([]cla.ConvergenceSender, 0, len(peers))
+	for _, peer := range peers {
 		log.WithFields(log.Fields{
 			"bundle": descriptor.ID(),
-			"error":  err,
-		}).Error("Error loading bundle")
-		return []cla.ConvergenceSender{}, nil
-	}
-
-	// remove all previous BinarySprayBlocks and attach our new one
-	blocks, err := bundle.ExtensionBlocksByType(bpv7.BlockTypeBinarySprayBlock)
-	if err == nil {
-		for _, block := range blocks {
-			bundle.RemoveExtensionBlockByBlockNumber(block.BlockNumber)
+			"peer":   peer.GetPeerEndpointID(),
+		}).Debug("Binary Spray checks peer")
+		if copies <= 1 {
+			log.WithFields(log.Fields{
+				"bundle": descriptor.ID(),
+				"peer":   peer.GetPeerEndpointID(),
+			}).Debug("No more copies left, aborting")
+			break
 		}
-	}
 
-	block := bpv7.NewCanonicalBlock(0, 0, bpv7.NewBinarySprayBlock(sendCopies))
-	err = bundle.AddExtensionBlock(block)
-	if err != nil {
+		sendCopies := copies / 2
+		retainedCopies := copies / 2
+		// if the number of copies is odd, we retain one more than we give away
+		if (copies % 2) != 0 {
+			retainedCopies += 1
+		}
+		copies = retainedCopies
+
 		log.WithFields(log.Fields{
 			"bundle": descriptor.ID(),
-			"error":  err,
-		}).Error("Error adding block to bundle")
-		return []cla.ConvergenceSender{}, nil
+			"peer":   peer.GetPeerEndpointID(),
+			"copies": sendCopies,
+		}).Debug("Peer will receive copies")
+		bundleCopies[peer.GetPeerEndpointID()] = sendCopies
+		selected = append(selected, peer)
 	}
 
-	// pick a peer at random
-	peer := []cla.ConvergenceSender{peers[rand.Intn(len(peers))]}
+	setSprayCopies(descriptor, copies)
+
 	log.WithFields(log.Fields{
 		"bundle": descriptor.ID(),
-		"peer":   peer[0],
-	}).Debug("Binary Spray&Wait selected peer for forwarding")
+		"peers":  selected,
+	}).Debug("Binary spray selected peers for forwarding")
+	return selected
+}
 
-	setSprayCopies(descriptor, retainedCopies)
+func (router *SprayAndWait) ModifyHeaders(descriptor *store.BundleDescriptor, headers *bpv7.PartialBundle, peer cla.ConvergenceSender) error {
+	if !router.binary {
+		// basic spray does not need to modify bundle
+		return nil
+	}
 
-	return peer, bundle
+	router.stateMutex.Lock()
+	defer router.stateMutex.Unlock()
+
+	log.WithFields(log.Fields{
+		"bundle": descriptor.ID(),
+		"peer":   peer.GetPeerEndpointID(),
+	}).Debug("Binary Spray modifying bundle headers")
+
+	bundleCopies, present := router.bundleCopies[descriptor.ID()]
+	if !present {
+		return NewNoCopiesError(descriptor.ID(), peer.GetPeerEndpointID())
+	}
+
+	peerCopies, present := bundleCopies[peer.GetPeerEndpointID()]
+	if !present {
+		return NewNoCopiesError(descriptor.ID(), peer.GetPeerEndpointID())
+	}
+
+	delete(bundleCopies, peer.GetPeerEndpointID())
+
+	// remove exiting BinarySprayBlock(s)
+	headers.RemoveExtensionBlocks(bpv7.BlockTypeBinarySprayBlock)
+
+	// add a new one
+	block := bpv7.NewCanonicalBlock(0, 0, bpv7.NewBinarySprayBlock(peerCopies))
+	err := headers.AddExtensionBlock(block)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"bundle": descriptor.ID(),
+			"peer":   peer.GetPeerEndpointID(),
+			"error":  err,
+		}).Error("Error adding block to headers")
+		return err
+	}
+
+	return nil
 }
 
 func setSprayCopies(descriptor *store.BundleDescriptor, copies uint64) {
@@ -233,4 +274,17 @@ func getSprayCopies(descriptor *store.BundleDescriptor) (uint64, bool) {
 	}
 	copies := data.(uint64)
 	return copies, true
+}
+
+type NoCopiesError struct {
+	bundle bpv7.BundleID
+	peer   bpv7.EndpointID
+}
+
+func NewNoCopiesError(bundle bpv7.BundleID, peer bpv7.EndpointID) error {
+	return NoCopiesError{bundle, peer}
+}
+
+func (e NoCopiesError) Error() string {
+	return fmt.Sprintf("no copies stored for combination of bundle %v and peer %v", e.bundle, e.peer)
 }

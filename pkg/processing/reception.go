@@ -39,7 +39,7 @@ func handleBundle(bundle *bpv7.Bundle, new bool) {
 
 	if dispatch, err := bundleDescriptor.HasConstraint(store.DispatchPending); err == nil && dispatch {
 		log.WithField("bundle", bundleDescriptor).Debug("Forwarding received bundle")
-		BundleForwarding(bundleDescriptor)
+		BundleForwarding(bundleDescriptor, bundle)
 	}
 }
 
@@ -55,7 +55,7 @@ func handleAdministrativeRecord(bundle *bpv7.Bundle) {
 			return
 		}
 
-		BundleForwarding(bundleDescriptor)
+		BundleForwarding(bundleDescriptor, bundle)
 	}
 }
 

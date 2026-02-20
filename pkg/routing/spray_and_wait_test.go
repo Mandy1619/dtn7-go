@@ -142,11 +142,7 @@ func TestSprayBasic_SelectPeersForForwarding(t *testing.T) {
 	router.NotifyNewBundle(descriptor, bundle)
 
 	// feeding it 5 peers, should select all 5 and reduce the remaining copies by 5
-	selectedPeers, modifiedBundle := router.SelectPeersForForwarding(descriptor, peers[:5])
-	if modifiedBundle != nil {
-		t.Fatal("Basic Spray routing should not modify bundle")
-	}
-
+	selectedPeers := router.SelectPeersForForwarding(descriptor, peers[:5])
 	if len(selectedPeers) != 5 {
 		t.Fatal("Spray&Wait selected wrong number of peers")
 	}
@@ -169,10 +165,7 @@ func TestSprayBasic_SelectPeersForForwarding(t *testing.T) {
 	}
 
 	// feeding it 8, of which 5 are the same as before, should just select the 3 new peers and reduce the remaining copies by 3
-	selectedPeers, modifiedBundle = router.SelectPeersForForwarding(descriptor, peers[:8])
-	if modifiedBundle != nil {
-		t.Fatal("Basic Spray routing should not modify bundle")
-	}
+	selectedPeers = router.SelectPeersForForwarding(descriptor, peers[:8])
 
 	if len(selectedPeers) != 3 {
 		t.Fatalf("Spray&Wait selected wrong number of peers. Expected 3, got %d", len(selectedPeers))
@@ -196,13 +189,10 @@ func TestSprayBasic_SelectPeersForForwarding(t *testing.T) {
 	}
 
 	// feeding it all peers should now only select 2 and drop the remaining copies to 0
-	selectedPeers, modifiedBundle = router.SelectPeersForForwarding(descriptor, peers)
-	if modifiedBundle != nil {
-		t.Fatal("Basic Spray routing should not modify bundle")
-	}
+	selectedPeers = router.SelectPeersForForwarding(descriptor, peers)
 
 	if len(selectedPeers) != 2 {
-		t.Fatalf("Spray&Wait selected wrong number of peers. Expected 3, got %d", len(selectedPeers))
+		t.Fatalf("Spray&Wait selected wrong number of peers. Expected 2, got %d", len(selectedPeers))
 	}
 
 	copies, ok = getSprayCopies(descriptor)
@@ -212,6 +202,13 @@ func TestSprayBasic_SelectPeersForForwarding(t *testing.T) {
 
 	if copies != 0 {
 		t.Fatal("Bundle should have 0 copies left")
+	}
+
+	// trying again should return no peers
+	selectedPeers = router.SelectPeersForForwarding(descriptor, peers)
+
+	if len(selectedPeers) != 0 {
+		t.Fatalf("Spray&Wait selected wrong number of peers. Expected 0, got %d", len(selectedPeers))
 	}
 }
 
@@ -225,14 +222,10 @@ func TestSprayBinary_SelectPeersForForwarding(t *testing.T) {
 	descriptor, bundle := testBundle(t)
 	router.NotifyNewBundle(descriptor, bundle)
 
-	// calls should always just return a single peer, who will receive half of the copies
-	selectedPeers, modifiedBundle := router.SelectPeersForForwarding(descriptor, peers)
-	if modifiedBundle == nil {
-		t.Fatal("Binary Spray routing should modify bundle")
-	}
+	selectedPeers := router.SelectPeersForForwarding(descriptor, peers)
 
-	if len(selectedPeers) != 1 {
-		t.Fatal("Binary spray should only select 1 peer")
+	if len(selectedPeers) != 4 {
+		t.Fatalf("Binary spray selected wrong number of peers. Expected: 5, got %v", len(selectedPeers))
 	}
 
 	err := descriptor.AddKnownHolder(peers[0].GetPeerEndpointID())
@@ -245,138 +238,68 @@ func TestSprayBinary_SelectPeersForForwarding(t *testing.T) {
 		t.Fatalf("Could not retrieve bundle copies")
 	}
 
-	if copies != 5 {
-		t.Fatal("Bundle should have 5 copies left")
-	}
-
-	block, err := modifiedBundle.ExtensionBlockByType(bpv7.BlockTypeBinarySprayBlock)
-	if err != nil {
-		t.Fatal("Bundle should have BinarySprayBlock")
-	}
-
-	attachedCopies := block.Value.(*bpv7.BinarySprayBlock).RemainingCopies()
-	if attachedCopies != 5 {
-		t.Fatal("Bundle should have 5 copies attached")
-	}
-
-	// do it again
-	selectedPeers, modifiedBundle = router.SelectPeersForForwarding(descriptor, peers)
-	if modifiedBundle == nil {
-		t.Fatal("Binary Spray routing should modify bundle")
-	}
-
-	if len(selectedPeers) != 1 {
-		t.Fatal("Binary spray should only select 1 peer")
-	}
-
-	err = descriptor.AddKnownHolder(peers[0].GetPeerEndpointID())
-	if err != nil {
-		t.Fatalf("Error adding peer to known holders: %s", err)
-	}
-
-	copies, ok = getSprayCopies(descriptor)
-	if !ok {
-		t.Fatalf("Could not retrieve bundle copies")
-	}
-
-	if copies != 3 {
-		t.Fatal("Bundle should have 3 copies left")
-	}
-
-	block, err = modifiedBundle.ExtensionBlockByType(bpv7.BlockTypeBinarySprayBlock)
-	if err != nil {
-		t.Fatal("Bundle should have BinarySprayBlock")
-	}
-
-	attachedCopies = block.Value.(*bpv7.BinarySprayBlock).RemainingCopies()
-	if attachedCopies != 2 {
-		t.Fatal("Bundle should have 2 copies attached")
-	}
-
-	// and again
-	selectedPeers, modifiedBundle = router.SelectPeersForForwarding(descriptor, peers)
-	if modifiedBundle == nil {
-		t.Fatal("Binary Spray routing should modify bundle")
-	}
-
-	if len(selectedPeers) != 1 {
-		t.Fatal("Binary spray should only select 1 peer")
-	}
-
-	err = descriptor.AddKnownHolder(peers[0].GetPeerEndpointID())
-	if err != nil {
-		t.Fatalf("Error adding peer to known holders: %s", err)
-	}
-
-	copies, ok = getSprayCopies(descriptor)
-	if !ok {
-		t.Fatalf("Could not retrieve bundle copies")
-	}
-
-	if copies != 2 {
-		t.Fatal("Bundle should have 2 copies left")
-	}
-
-	block, err = modifiedBundle.ExtensionBlockByType(bpv7.BlockTypeBinarySprayBlock)
-	if err != nil {
-		t.Fatal("Bundle should have BinarySprayBlock")
-	}
-
-	attachedCopies = block.Value.(*bpv7.BinarySprayBlock).RemainingCopies()
-	if attachedCopies != 1 {
-		t.Fatal("Bundle should have 1 copies attached")
-	}
-
-	// and again
-	selectedPeers, modifiedBundle = router.SelectPeersForForwarding(descriptor, peers)
-	if modifiedBundle == nil {
-		t.Fatal("Binary Spray routing should modify bundle")
-	}
-
-	if len(selectedPeers) != 1 {
-		t.Fatal("Binary spray should only select 1 peer")
-	}
-
-	err = descriptor.AddKnownHolder(peers[0].GetPeerEndpointID())
-	if err != nil {
-		t.Fatalf("Error adding peer to known holders: %s", err)
-	}
-
-	copies, ok = getSprayCopies(descriptor)
-	if !ok {
-		t.Fatalf("Could not retrieve bundle copies")
-	}
-
 	if copies != 1 {
-		t.Fatal("Bundle should have 1 copies left")
+		t.Fatal("Bundle should have 1 copy left")
 	}
 
-	block, err = modifiedBundle.ExtensionBlockByType(bpv7.BlockTypeBinarySprayBlock)
-	if err != nil {
-		t.Fatal("Bundle should have BinarySprayBlock")
+	bundleCopies, present := router.bundleCopies[descriptor.ID()]
+	if !present {
+		t.Fatal("Did not save bundle copies")
 	}
 
-	attachedCopies = block.Value.(*bpv7.BinarySprayBlock).RemainingCopies()
-	if attachedCopies != 1 {
-		t.Fatal("Bundle should have 1 copies attached")
+	if len(bundleCopies) != len(selectedPeers) {
+		t.Fatal("Did not save number of copies for each peer")
 	}
 
-	// finally, there should be no copies left and forwarding should stop
-	selectedPeers, modifiedBundle = router.SelectPeersForForwarding(descriptor, peers)
-	if modifiedBundle != nil {
-		t.Fatal("No copies left, so there should be no modified bundle")
+	var total uint64 = 0
+	for _, peer := range selectedPeers {
+		peerCopies, present := bundleCopies[peer.GetPeerEndpointID()]
+		if !present {
+			t.Fatalf("Did not save copies for peer %v", peer)
+		}
+		total += peerCopies
 	}
 
+	if total != 9 {
+		t.Fatal("Gave out wrong number of copies")
+	}
+
+	// trying again should return no peers
+	selectedPeers = router.SelectPeersForForwarding(descriptor, peers)
 	if len(selectedPeers) != 0 {
-		t.Fatal("No copies lest, so there should be no forwarding")
+		t.Fatal("Should not have selected any peers")
+	}
+}
+
+func TestSprayBinary_ModifyHeaders(t *testing.T) {
+	router := NewSprayAndWait(initialCopies, true)
+	setup(t, router)
+	defer teardown(t)
+
+	peer := generatePeers(1)[0]
+	descriptor, bundle := testBundle(t)
+
+	router.bundleCopies[descriptor.ID()] = make(map[bpv7.EndpointID]uint64)
+	router.bundleCopies[descriptor.ID()][peer.GetPeerEndpointID()] = 6
+	bundleHeaders := bpv7.BundleHeaders(bundle)
+
+	err := router.ModifyHeaders(descriptor, bundleHeaders, peer)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	copies, ok = getSprayCopies(descriptor)
-	if !ok {
-		t.Fatalf("Could not retrieve bundle copies")
+	block, err := bundleHeaders.ExtensionBlockByType(bpv7.BlockTypeBinarySprayBlock)
+	if err != nil {
+		t.Fatal("Headers should contain BinarySprayBlock")
 	}
 
-	if copies != 1 {
-		t.Fatal("Bundle should have 1 copies left")
+	copies := block.Value.(*bpv7.BinarySprayBlock).Copies()
+	if copies != 6 {
+		t.Error("BinarySprayBlock does not contain correct number of copies")
+	}
+
+	_, present := router.bundleCopies[descriptor.ID()][peer.GetPeerEndpointID()]
+	if present {
+		t.Error("Copies for peer should have been removed")
 	}
 }

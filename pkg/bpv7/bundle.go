@@ -148,6 +148,17 @@ func (b *Bundle) AddExtensionBlock(block CanonicalBlock) error {
 	return nil
 }
 
+// RemoveExtensionBlocks removes all ExtensionBlocks with the given blockType.
+func (b *Bundle) RemoveExtensionBlocks(blockType BlockType) {
+	retain := make([]CanonicalBlock, 0, len(b.ExtensionBlocks))
+	for _, extensionBlock := range b.ExtensionBlocks {
+		if extensionBlock.Value.BlockTypeCode() != blockType {
+			retain = append(retain, extensionBlock)
+		}
+	}
+	b.ExtensionBlocks = retain
+}
+
 // GetExtensionBlockByBlockNumber  searches and returns a CanonicalBlock / ExtensionBlock with the given block number.
 // If no such block exists, the method will return an error. Sorting will not be performed, as we assume that the blocks are
 // already in their correct order.

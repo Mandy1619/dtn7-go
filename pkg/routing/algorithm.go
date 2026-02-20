@@ -55,9 +55,19 @@ type Algorithm interface {
 
 	// SelectPeersForForwarding returns an array of ConvergenceSender for a requested bundle.
 	// dtnd will attempt to forward the bundle to all the selected peers.
-	// If the routing algorithm needs to make any modifications to the bundle, it should load the bundle, make modifications and then return the pointer.
-	// If the pointer is nil, then the processing pipeline will load the bundle from disk.
-	SelectPeersForForwarding(descriptor *store.BundleDescriptor, peers []cla.ConvergenceSender) ([]cla.ConvergenceSender, *bpv7.Bundle)
+	SelectPeersForForwarding(descriptor *store.BundleDescriptor, peers []cla.ConvergenceSender) []cla.ConvergenceSender
+
+	// ModifyHeaders is called by the processing pipeline after SelectPeersForForwarding.
+	// It is called once for every peer that was selected (which is passed in the "peer" argument).
+	// The "headers" argument is a pointer to a copy of the bundle's primary and extension-blocks.
+	// Once this function returns, a new bundle will be constructed by combining the headers with the bundle's payload
+	// this is the bundle that will be sent to the peer.
+	// This allows the algorithm to modify the bundle's headers before it is sent.
+	//
+	// IMPORTANT: depending on the underlying implementation, any CanonicalBlock might hold a pointer to an ExtensionBlock.
+	// So you should NEVER modify existing blocks.
+	// Instead, use RemoveExtensionBlocks and AddExtensionBlock to remove and (re)add blocks
+	ModifyHeaders(descriptor *store.BundleDescriptor, headers *bpv7.PartialBundle, peer cla.ConvergenceSender) error
 
 	// NotifyPeerAppeared notifies the Algorithm about a new peer.
 	NotifyPeerAppeared(peer bpv7.EndpointID)

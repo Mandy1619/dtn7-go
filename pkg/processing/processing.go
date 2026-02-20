@@ -25,7 +25,7 @@ func SetOwnNodeID(nid bpv7.EndpointID) {
 }
 
 // forwardingAsync implements the bundle forwarding procedure described in RFC9171 section 5.4
-func forwardingAsync(bundleDescriptor *store.BundleDescriptor) {
+func forwardingAsync(bundleDescriptor *store.BundleDescriptor, bundle *bpv7.Bundle) {
 	log.WithField("bundle", bundleDescriptor).Debug("Processing bundle")
 
 	// Step 1: add "Forward Pending", remove "Dispatch Pending"
@@ -49,7 +49,8 @@ func forwardingAsync(bundleDescriptor *store.BundleDescriptor) {
 	// Step 2: determine if contraindicated - whatever that means
 	// Step 2.1: Call routing algorithm(?)
 	peers := cla.GetManagerSingleton().GetSenders()
-	forwardToPeers, bundle := routing.GetAlgorithmSingleton().SelectPeersForForwarding(bundleDescriptor, peers)
+	// TODO: direct delivery
+	forwardToPeers := routing.GetAlgorithmSingleton().SelectPeersForForwarding(bundleDescriptor, peers)
 
 	// Step 3: if contraindicated, call `contraindicateBundle`, and return
 	if len(forwardToPeers) == 0 {
@@ -101,8 +102,8 @@ func forwardingAsync(bundleDescriptor *store.BundleDescriptor) {
 	}
 }
 
-func BundleForwarding(bundleDescriptor *store.BundleDescriptor) {
-	go forwardingAsync(bundleDescriptor)
+func BundleForwarding(bundleDescriptor *store.BundleDescriptor, bundle *bpv7.Bundle) {
+	go forwardingAsync(bundleDescriptor, bundle)
 }
 
 func bundleContraindicated(bundleDescriptor *store.BundleDescriptor) {
@@ -122,6 +123,21 @@ func forwardBundleToPeer(bundleDescriptor *store.BundleDescriptor, bundle *bpv7.
 		"cla":    peer,
 	}).Info("Sending bundle to a CLA (ConvergenceSender)")
 	defer wg.Done()
+
+	// allow routing algorithm to modify bundle
+	// "extract" headers from bundle
+	bundleHeaders := bpv7.BundleHeaders(bundle)
+	err := routing.GetAlgorithmSingleton().ModifyHeaders(bundleDescriptor, bundleHeaders, peer)
+	if err != nil {
+		// if there was an error, we abort
+		log.WithFields(log.Fields{
+			"bundle": bundleDescriptor.ID(),
+			"peer":   peer.GetPeerEndpointID(),
+		})
+		return
+	}
+	// "reconstruct" bundle from modified headers
+	bundle = bpv7.BundleFromPartialBundle(bundleHeaders, bundle.PayloadBlock)
 
 	if err := peer.Send(bundle); err != nil {
 		log.WithFields(log.Fields{
@@ -152,7 +168,7 @@ func DispatchPending() {
 	log.WithField("bundles", bndls).Debug("Bundles to dispatch")
 
 	for _, bndl := range bndls {
-		BundleForwarding(bndl)
+		BundleForwarding(bndl, nil)
 	}
 }
 

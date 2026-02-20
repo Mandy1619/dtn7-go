@@ -14,10 +14,7 @@ func TestEpidemicRouting_SelectPeersForForwarding(t *testing.T) {
 	descriptor, _ := testBundle(t)
 
 	// send to half of peers
-	selectedPeers, modifiedBundle := router.SelectPeersForForwarding(descriptor, peers[:5])
-	if modifiedBundle != nil {
-		t.Fatal("Epidemic routing should not modify bundle")
-	}
+	selectedPeers := router.SelectPeersForForwarding(descriptor, peers[:5])
 
 	if len(selectedPeers) != 5 {
 		t.Fatal("Epidemic did not select correct number of peers")
@@ -38,20 +35,14 @@ func TestEpidemicRouting_SelectPeersForForwarding(t *testing.T) {
 	}
 
 	// giving the same peers again should select none
-	selectedPeers, modifiedBundle = router.SelectPeersForForwarding(descriptor, peers[:5])
-	if modifiedBundle != nil {
-		t.Fatal("Epidemic routing should not modify bundle")
-	}
+	selectedPeers = router.SelectPeersForForwarding(descriptor, peers[:5])
 
 	if len(selectedPeers) != 0 {
 		t.Fatal("Epidemic should not select known holders")
 	}
 
 	// giving all peers should only select new peers
-	selectedPeers, modifiedBundle = router.SelectPeersForForwarding(descriptor, peers)
-	if modifiedBundle != nil {
-		t.Fatal("Epidemic routing should not modify bundle")
-	}
+	selectedPeers = router.SelectPeersForForwarding(descriptor, peers)
 
 	if len(selectedPeers) != 5 {
 		t.Fatal("Epidemic did not select correct number of peers")
