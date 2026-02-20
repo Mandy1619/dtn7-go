@@ -157,10 +157,12 @@ func ParsePartialBundle(r io.Reader, wantedExtensionBlocks []BlockType) (*Partia
 	for {
 		cb := CanonicalBlock{}
 
-		if wanted, err := cb.UnmarshalWantedBlock(r, wantedExtensionBlocks); err == cboring.FlagBreakCode || cb.TypeCode() == BlockTypePayloadBlock {
+		if wanted, err := cb.UnmarshalWantedBlock(r, wantedExtensionBlocks); err == cboring.FlagBreakCode {
 			break
 		} else if err != nil {
 			return nil, fmt.Errorf("CanonicalBlock failed: %v", err)
+		} else if cb.TypeCode() == BlockTypePayloadBlock {
+			break
 		} else if wanted {
 			if index := slices.Index(wantedExtensionBlocks, cb.TypeCode()); index >= 0 {
 				wantedExtensionBlocks = slices.Delete(wantedExtensionBlocks, index, index+1)
