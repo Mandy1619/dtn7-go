@@ -47,6 +47,10 @@ func (agent *UNIXAgent) Name() string {
 	return fmt.Sprintf("UNIXAgent(%v)", agent.listenAddress)
 }
 
+func (agent *UNIXAgent) String() string {
+	return agent.Name()
+}
+
 func (agent *UNIXAgent) Endpoints() []bpv7.EndpointID {
 	return agent.mailboxes.RegisteredIDs()
 }

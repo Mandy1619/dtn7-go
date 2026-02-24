@@ -8,11 +8,15 @@
 package application_agent
 
 import (
+	"fmt"
+
 	"github.com/dtn7/dtn7-go/pkg/bpv7"
 	"github.com/dtn7/dtn7-go/pkg/store"
 )
 
 type ApplicationAgent interface {
+	fmt.Stringer
+
 	// Name is some string which uniquely identifies an agent.
 	// Should include the agent type, as well as relevant config data (such as addresses that are listened on)
 	Name() string
