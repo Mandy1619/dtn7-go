@@ -18,6 +18,7 @@ import (
 	"github.com/dtn7/dtn7-go/pkg/cla/dummy_cla"
 	"github.com/dtn7/dtn7-go/pkg/cla/mtcp"
 	"github.com/dtn7/dtn7-go/pkg/cla/quicl"
+	"github.com/dtn7/dtn7-go/pkg/cla/meshtastic"   //added by Mandy
 	"github.com/dtn7/dtn7-go/pkg/discovery"
 	"github.com/dtn7/dtn7-go/pkg/id_keeper"
 	"github.com/dtn7/dtn7-go/pkg/processing"
@@ -126,6 +127,10 @@ func startDtnd(conf config) (startupErrors error) {
 			cla.GetManagerSingleton().Register(srv)
 		case cla.QUICL:
 			listener = quicl.NewQUICListener(lstConf.Address, lstConf.EndpointId, cla.GetManagerSingleton().NotifyReceive)
+		case cla.Meshtastic:  //added by Mandy
+    			srv := meshtastic.NewMeshtasticServer(lstConf.Address, lstConf.EndpointId, cla.GetManagerSingleton().NotifyReceive)
+    			listener = srv
+    			cla.GetManagerSingleton().Register(srv)
 		default:
 			err = NewStartupError(fmt.Sprintf("%v not valid convergence listener type", lstConf.Type), nil)
 			startupErrors = errors.Join(startupErrors, err)

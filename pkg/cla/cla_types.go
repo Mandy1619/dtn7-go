@@ -27,6 +27,9 @@ const (
 
 	// QUICL is the "QUIC Convergence Layer", as described in https://doi.org/10.1016/j.comcom.2025.108247
 	QUICL CLAType = 20
+	
+	//Added by Mandy
+	Meshtastic CLAType = 30
 
 	// Dummy CLA used for testing
 	Dummy CLAType = 8080
@@ -43,6 +46,8 @@ func TypeFromString(claType string) (CLAType, error) {
 		return MTCP, nil
 	case "quicl":
 		return QUICL, nil
+	case "meshtastic":
+		return Meshtastic, nil   //added by mandy
 	default:
 		return 0, fmt.Errorf("invalid CLA Type: %v", claType)
 	}
@@ -66,6 +71,9 @@ func (claType CLAType) String() string {
 
 	case QUICL:
 		return "QUICL"
+		
+	case Meshtastic:
+		return "meshtastic"    //added by Mandy
 
 	default:
 		return unknownClaTypeString

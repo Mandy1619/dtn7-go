@@ -160,12 +160,13 @@ func parse(filename string) (config, error) {
 			return config{}, NewConfigError("Error parsing Listener Type", err)
 		}
 		conf.Listener = append(conf.Listener, ListenerConfig{Type: claType, Address: listener.Address, EndpointId: nodeID})
-
-		port, err := parseListenPort(listener.Address)
-		if err != nil {
-			return config{}, NewConfigError("Error parsing listener port", err)
+		if claType !=cla.Meshtastic {
+			port, err := parseListenPort(listener.Address)
+			if err != nil {
+				return config{}, NewConfigError("Error parsing listener port", err)
+			}
+			conf.Discovery = append(conf.Discovery, discovery.Announcement{Type: claType, Port: uint(port), Endpoint: nodeID})
 		}
-		conf.Discovery = append(conf.Discovery, discovery.Announcement{Type: claType, Port: uint(port), Endpoint: nodeID})
 	}
 
 	// Agents config needs no parsing
