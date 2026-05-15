@@ -14,6 +14,7 @@ import (
 	"github.com/dtn7/dtn7-go/pkg/application_agent"
 	"github.com/dtn7/dtn7-go/pkg/application_agent/rest_agent"
 	"github.com/dtn7/dtn7-go/pkg/application_agent/unix_agent"
+	"github.com/dtn7/dtn7-go/pkg/bpv7" //added by mandy
 	"github.com/dtn7/dtn7-go/pkg/cla"
 	"github.com/dtn7/dtn7-go/pkg/cla/dummy_cla"
 	"github.com/dtn7/dtn7-go/pkg/cla/mtcp"
@@ -131,6 +132,9 @@ func startDtnd(conf config) (startupErrors error) {
     			srv := meshtastic.NewMeshtasticServer(lstConf.Address, lstConf.EndpointId, cla.GetManagerSingleton().NotifyReceive)
     			listener = srv
     			cla.GetManagerSingleton().Register(srv)
+				peerEID, _ := bpv7.NewEndpointID("dtn://node2/")  // TODO: read from config
+    			client := meshtastic.NewMeshtasticClient("127.0.0.1:5006", peerEID)
+    			cla.GetManagerSingleton().Register(client)
 		default:
 			err = NewStartupError(fmt.Sprintf("%v not valid convergence listener type", lstConf.Type), nil)
 			startupErrors = errors.Join(startupErrors, err)

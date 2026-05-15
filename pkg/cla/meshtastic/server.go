@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-
 package meshtastic
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
+	"net"
 
 	log "github.com/sirupsen/logrus"
 
@@ -11,74 +13,142 @@ import (
 	"github.com/dtn7/dtn7-go/pkg/cla"
 )
 
-// MeshtasticServer listens for incoming bundles from a Meshtastic device
-// (or the UDP simulator in Weeks 5–6).
-//
-// It implements:
-//   - cla.ConvergenceListener  (Start, Running, Address, Close)
-//   - cla.ConvergenceReceiver  (Activate, Active, Address, Close, GetEndpointID)
+// MeshtasticServer listens for incoming chunked bundles on a UDP socket.
+// Implements cla.ConvergenceListener and cla.ConvergenceReceiver.
 type MeshtasticServer struct {
-	address    string
-	endpointID bpv7.EndpointID
-	receive    func(*bpv7.Bundle)
-
-	running bool
-	active  bool
+	listenAddr     string // e.g. "0.0.0.0:5006" or "sim"
+	endpointID     bpv7.EndpointID
+	receiveCallback func(*bpv7.Bundle)
+	conn           *net.UDPConn
+	running        bool
+	active         bool
+	stopCh         chan struct{}
 }
 
-// NewMeshtasticServer creates a new server stub.
-// address is a string like "sim" (UDP sim) or "/dev/ttyUSB0" (real hardware).
-// endpointID is the DTN endpoint this node owns.
-// receive is the callback supplied by the CLA manager; call it when a bundle arrives.
-func NewMeshtasticServer(address string, endpointID bpv7.EndpointID, receive func(*bpv7.Bundle)) *MeshtasticServer {
+func NewMeshtasticServer(address string, endpointID bpv7.EndpointID, receiveCallback func(*bpv7.Bundle)) *MeshtasticServer {
 	return &MeshtasticServer{
-		address:    address,
-		endpointID: endpointID,
-		receive:    receive,
+		listenAddr:      address,
+		endpointID:      endpointID,
+		receiveCallback: receiveCallback,
+		stopCh:          make(chan struct{}),
 	}
 }
 
-// ── ConvergenceListener ──────────────────────────────────────────────────────
-
 func (s *MeshtasticServer) Start() error {
-	log.WithField("address", s.Address()).Info("Meshtastic server Start() called (stub)")
+	// "sim" means listen on 0.0.0.0:5006 (node2 receives on this port)
+	listenAddr := s.listenAddr
+	if listenAddr == "sim" {
+		listenAddr = "0.0.0.0:5006"
+	}
+
+	addr, err := net.ResolveUDPAddr("udp", listenAddr)
+	if err != nil {
+		return fmt.Errorf("meshtastic server: resolve %s: %w", listenAddr, err)
+	}
+	conn, err := net.ListenUDP("udp", addr)
+	if err != nil {
+		return fmt.Errorf("meshtastic server: listen %s: %w", listenAddr, err)
+	}
+	s.conn = conn
 	s.running = true
+	log.WithField("addr", listenAddr).Info("Meshtastic server listening (UDP sim)")
+	go s.receiveLoop()
 	return nil
 }
 
-func (s *MeshtasticServer) Running() bool {
-	return s.running
+// reassemblyBuffer holds chunks for a bundle in progress
+type reassemblyBuffer struct {
+	chunks      map[uint8][]byte
+	totalChunks uint8
 }
 
-// ── ConvergenceReceiver ──────────────────────────────────────────────────────
+func (s *MeshtasticServer) receiveLoop() {
+	buf := make([]byte, 200)
+	// bundle_id -> reassembly state
+	reassembly := make(map[uint32]*reassemblyBuffer)
 
-func (s *MeshtasticServer) Activate() error {
-	log.WithField("address", s.Address()).Info("Meshtastic server Activate() called (stub)")
-	s.active = true
-	return nil
-}
+	for {
+		select {
+		case <-s.stopCh:
+			return
+		default:
+		}
 
-func (s *MeshtasticServer) Active() bool {
-	return s.active
-}
+		n, _, err := s.conn.ReadFromUDP(buf)
+		if err != nil {
+			if s.running {
+				log.WithError(err).Warn("Meshtastic server: UDP read error")
+			}
+			continue
+		}
 
-func (s *MeshtasticServer) GetEndpointID() bpv7.EndpointID {
-	return s.endpointID
-}
+		if n < headerSize {
+			log.Warnf("Meshtastic server: short packet (%d bytes), skipping", n)
+			continue
+		}
 
-// ── Convergence (shared) ─────────────────────────────────────────────────────
+		// Parse header
+		bundleID    := binary.BigEndian.Uint32(buf[0:4])
+		chunkIdx    := buf[4]
+		totalChunks := buf[5]
+		payloadLen  := binary.BigEndian.Uint16(buf[6:8])
 
-func (s *MeshtasticServer) Address() string {
-	return fmt.Sprintf("meshtastic://%s", s.address)
+		payload := make([]byte, payloadLen)
+		copy(payload, buf[headerSize:headerSize+payloadLen])
+
+		log.WithFields(log.Fields{
+			"bundle_id": fmt.Sprintf("%#010x", bundleID),
+			"chunk":     fmt.Sprintf("%d/%d", chunkIdx+1, totalChunks),
+		}).Debug("Meshtastic server: received chunk")
+
+		// Store in reassembly buffer
+		if reassembly[bundleID] == nil {
+			reassembly[bundleID] = &reassemblyBuffer{
+				chunks:      make(map[uint8][]byte),
+				totalChunks: totalChunks,
+			}
+		}
+		reassembly[bundleID].chunks[chunkIdx] = payload
+
+		// Check if all chunks have arrived
+		rb := reassembly[bundleID]
+		if uint8(len(rb.chunks)) == rb.totalChunks {
+			// Reassemble in order
+			var full bytes.Buffer
+			for i := uint8(0); i < rb.totalChunks; i++ {
+				full.Write(rb.chunks[i])
+			}
+			delete(reassembly, bundleID)
+
+			// Decode CBOR back into a bundle
+			var bundle bpv7.Bundle
+			if err := bundle.UnmarshalCbor(&full); err != nil {
+				log.WithError(err).Errorf("Meshtastic server: CBOR decode failed for bundle %#010x", bundleID)
+				continue
+			}
+			log.WithField("bundle_id", bundle.ID().String()).Info("Meshtastic server: bundle reassembled, handing to DTN7")
+			s.receiveCallback(&bundle)
+		}
+	}
 }
 
 func (s *MeshtasticServer) Close() error {
-	log.WithField("address", s.Address()).Info("Meshtastic server Close() called (stub)")
 	s.running = false
 	s.active = false
+	close(s.stopCh)
+	if s.conn != nil {
+		return s.conn.Close()
+	}
 	return nil
 }
 
-// compile-time interface checks
+func (s *MeshtasticServer) Running() bool                    { return s.running }
+func (s *MeshtasticServer) Active() bool                     { return s.active }
+func (s *MeshtasticServer) Activate() error                  { s.active = true; return nil }
+func (s *MeshtasticServer) GetEndpointID() bpv7.EndpointID   { return s.endpointID }
+func (s *MeshtasticServer) Address() string {
+	return fmt.Sprintf("meshtastic://%s", s.listenAddr)
+}
+
 var _ cla.ConvergenceListener = (*MeshtasticServer)(nil)
 var _ cla.ConvergenceReceiver = (*MeshtasticServer)(nil)

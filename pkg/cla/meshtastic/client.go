@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-
 package meshtastic
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
+	"net"
+	"sync"
 
 	log "github.com/sirupsen/logrus"
 
@@ -11,57 +14,106 @@ import (
 	"github.com/dtn7/dtn7-go/pkg/cla"
 )
 
-// MeshtasticClient sends bundles to a peer Meshtastic node.
-//
-// It implements cla.ConvergenceSender.
-type MeshtasticClient struct {
-	address        string
-	peerEndpointID bpv7.EndpointID
+const (
+	maxPayloadBytes = 192 // 200 byte LoRa MTU minus 8 byte header
+	headerSize      = 8
+)
 
-	active bool
+// MeshtasticClient sends bundles to a peer Meshtastic node via UDP simulation.
+// Implements cla.ConvergenceSender.
+type MeshtasticClient struct {
+	peerAddress    string         // e.g. "127.0.0.1:5005"
+	peerEndpointID bpv7.EndpointID
+	conn           *net.UDPConn
+	mu             sync.Mutex
+	active         bool
 }
 
-// NewMeshtasticClient creates a new client stub pointing at peerAddress.
-func NewMeshtasticClient(address string, peerEndpointID bpv7.EndpointID) *MeshtasticClient {
+func NewMeshtasticClient(peerAddress string, peerEndpointID bpv7.EndpointID) *MeshtasticClient {
 	return &MeshtasticClient{
-		address:        address,
+		peerAddress:    peerAddress,
 		peerEndpointID: peerEndpointID,
 	}
 }
 
-// ── ConvergenceSender ────────────────────────────────────────────────────────
+func (c *MeshtasticClient) Activate() error {
+	addr, err := net.ResolveUDPAddr("udp", c.peerAddress)
+	if err != nil {
+		return fmt.Errorf("meshtastic client: resolve %s: %w", c.peerAddress, err)
+	}
+	conn, err := net.DialUDP("udp", nil, addr)
+	if err != nil {
+		return fmt.Errorf("meshtastic client: dial %s: %w", c.peerAddress, err)
+	}
+	c.conn = conn
+	c.active = true
+	log.WithField("peer", c.peerAddress).Info("Meshtastic client activated (UDP sim)")
+	return nil
+}
 
 func (c *MeshtasticClient) Send(bundle *bpv7.Bundle) error {
-	log.WithField("address", c.Address()).Info("Meshtastic client Send() called (stub — bundle dropped)")
-	// TO-DO: marshal bundle to CBOR, split into 200-byte chunks, send over UDP/serial
+	// Marshal the full bundle to CBOR bytes
+	var buf bytes.Buffer
+	if err := bundle.MarshalCbor(&buf); err != nil {
+		return fmt.Errorf("meshtastic: cbor marshal: %w", err)
+	}
+	bundleBytes := buf.Bytes()
+
+	// Use lower 32 bits of creation timestamp as bundle_id
+	bundleID := uint32(bundle.ID().Timestamp[0] & 0xFFFFFFFF)
+
+	// Split into maxPayloadBytes chunks
+	var chunks [][]byte
+	for len(bundleBytes) > 0 {
+		end := maxPayloadBytes
+		if end > len(bundleBytes) {
+			end = len(bundleBytes)
+		}
+		chunks = append(chunks, bundleBytes[:end])
+		bundleBytes = bundleBytes[end:]
+	}
+	totalChunks := len(chunks)
+
+	log.WithFields(log.Fields{
+		"bundle_id":    fmt.Sprintf("%#010x", bundleID),
+		"total_chunks": totalChunks,
+		"total_bytes":  buf.Len(),
+	}).Info("Meshtastic client: sending bundle")
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	for i, payload := range chunks {
+		// Build 8-byte header: [bundle_id:4][chunk_idx:1][total_chunks:1][payload_len:2]
+		header := make([]byte, headerSize)
+		binary.BigEndian.PutUint32(header[0:4], bundleID)
+		header[4] = uint8(i)
+		header[5] = uint8(totalChunks)
+		binary.BigEndian.PutUint16(header[6:8], uint16(len(payload)))
+
+		packet := append(header, payload...)
+		if _, err := c.conn.Write(packet); err != nil {
+			return fmt.Errorf("meshtastic: chunk %d/%d write: %w", i+1, totalChunks, err)
+		}
+		log.WithFields(log.Fields{
+			"chunk":     fmt.Sprintf("%d/%d", i+1, totalChunks),
+			"bundle_id": fmt.Sprintf("%#010x", bundleID),
+		}).Debug("Meshtastic client: sent chunk")
+	}
 	return nil
 }
 
-func (c *MeshtasticClient) GetPeerEndpointID() bpv7.EndpointID {
-	return c.peerEndpointID
-}
-
-// ── Convergence (shared) ─────────────────────────────────────────────────────
-
-func (c *MeshtasticClient) Activate() error {
-	log.WithField("address", c.Address()).Info("Meshtastic client Activate() called (stub)")
-	c.active = true
-	return nil
-}
-
-func (c *MeshtasticClient) Active() bool {
-	return c.active
-}
-
+func (c *MeshtasticClient) GetPeerEndpointID() bpv7.EndpointID { return c.peerEndpointID }
+func (c *MeshtasticClient) Active() bool                       { return c.active }
 func (c *MeshtasticClient) Address() string {
-	return fmt.Sprintf("meshtastic://%s", c.address)
+	return fmt.Sprintf("meshtastic://%s", c.peerAddress)
 }
-
 func (c *MeshtasticClient) Close() error {
-	log.WithField("address", c.Address()).Info("Meshtastic client Close() called (stub)")
 	c.active = false
+	if c.conn != nil {
+		return c.conn.Close()
+	}
 	return nil
 }
 
-// compile-time interface check
 var _ cla.ConvergenceSender = (*MeshtasticClient)(nil)

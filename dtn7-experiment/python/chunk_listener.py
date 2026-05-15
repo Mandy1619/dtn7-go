@@ -12,7 +12,7 @@ Usage: python3 chunk_listener.py
 import socket
 import struct
 
-UDP_PORT    = 5005
+UDP_PORT    = 5006
 MAX_PACKET  = 200
 HEADER_SIZE = 8
 
