@@ -13,7 +13,7 @@ import socket
 import struct
 import cbor2
 
-UDP_PORT    = 5005
+UDP_PORT    = 5006
 MAX_PACKET  = 200
 HEADER_SIZE = 8
 
@@ -34,7 +34,7 @@ def parse_header(data):
 
 def main():
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind(("localhost", UDP_PORT))
+    sock.bind(("0.0.0.0", UDP_PORT))
     print(f"Listening for chunks on UDP port {UDP_PORT}...")
     print(f"Header format: [bundle_id:4][chunk_idx:1][total_chunks:1][payload_len:2]")
     print("Ctrl+C to stop\n")

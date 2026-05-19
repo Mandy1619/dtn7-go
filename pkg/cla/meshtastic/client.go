@@ -52,37 +52,56 @@ func (c *MeshtasticClient) Activate() error {
 }
 
 func (c *MeshtasticClient) Send(bndl *bpv7.Bundle) error {
-    // 1. CBOR-marshal the bundle
-    var buf bytes.Buffer
-    if err := cboring.Marshal(bndl, &buf); err != nil {
-        return err
-    }
-    data := buf.Bytes()
+	// 1. CBOR-marshal the bundle to bytes
+	var buf bytes.Buffer
+	if err := bndl.MarshalCbor(&buf); err != nil {
+		return fmt.Errorf("meshtastic: cbor marshal: %w", err)
+	}
+	bundleBytes := buf.Bytes()
 
-    // 2. Derive bundle_id from creation timestamp
-    ts := bndl.PrimaryBlock.CreationTimestamp.DtnTime()
-    bundleID := uint32(ts & 0xFFFFFFFF)
+	// 2. Derive a 4-byte bundle_id from the creation timestamp
+	bundleID := uint32(bndl.ID().Timestamp[0] & 0xFFFFFFFF)
 
-    // 3. Chunk and send
-    chunkSize := 192
-    chunks := splitIntoChunks(data, chunkSize)
-    total := uint8(len(chunks))
+	// 3. Split into 192-byte chunks
+	var chunks [][]byte
+	for len(bundleBytes) > 0 {
+		end := maxPayloadBytes
+		if end > len(bundleBytes) {
+			end = len(bundleBytes)
+		}
+		chunks = append(chunks, bundleBytes[:end])
+		bundleBytes = bundleBytes[end:]
+	}
+	totalChunks := len(chunks)
 
-    conn, err := net.Dial("udp", "localhost:5005")
-    if err != nil { return err }
-    defer conn.Close()
+	log.WithFields(log.Fields{
+		"bundle_id":    fmt.Sprintf("%#010x", bundleID),
+		"total_chunks": totalChunks,
+		"total_bytes":  buf.Len(),
+	}).Info("Meshtastic client: sending bundle")
 
-    for i, payload := range chunks {
-        header := make([]byte, 8)
-        binary.BigEndian.PutUint32(header[0:4], bundleID)
-        header[4] = uint8(i)
-        header[5] = total
-        binary.BigEndian.PutUint16(header[6:8], uint16(len(payload)))
-        packet := append(header, payload...)
-        conn.Write(packet)
-        // TODO Week 9: add 500ms duty cycle gap here when --duty-cycle flag is set
-    }
-    return nil
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// 4. Send each chunk over the already-open UDP connection from Activate()
+	for i, payload := range chunks {
+		header := make([]byte, headerSize)
+		binary.BigEndian.PutUint32(header[0:4], bundleID)
+		header[4] = uint8(i)
+		header[5] = uint8(totalChunks)
+		binary.BigEndian.PutUint16(header[6:8], uint16(len(payload)))
+
+		packet := append(header, payload...)
+		if _, err := c.conn.Write(packet); err != nil {
+			return fmt.Errorf("meshtastic: chunk %d/%d write: %w", i+1, totalChunks, err)
+		}
+		log.WithFields(log.Fields{
+			"chunk":     fmt.Sprintf("%d/%d", i+1, totalChunks),
+			"bundle_id": fmt.Sprintf("%#010x", bundleID),
+		}).Debug("Meshtastic client: sent chunk")
+		// TODO Week 9: time.Sleep(500 * time.Millisecond) when --duty-cycle flag is set
+	}
+	return nil
 }
 
 func (c *MeshtasticClient) GetPeerEndpointID() bpv7.EndpointID { return c.peerEndpointID }

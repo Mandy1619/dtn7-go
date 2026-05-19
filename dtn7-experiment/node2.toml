@@ -14,15 +14,15 @@ address = "localhost:8082"
 [Agents.UNIX]
 socket = "/tmp/dtnd_node2.socket"
 
- [[Listener]]
- type = "mtcp"
- address = ":4557"
+[[Listener]]
+type = "mtcp"
+address = ":4557"
 
 [[Listener]]
 type = "meshtastic"
 address = "0.0.0.0:5006"
 peer = "127.0.0.1:5005"
-peer_id = "dtn://node2/"
+peer_id = "dtn://node1/"
 
 [Cron]
 dispatch = "10s"
