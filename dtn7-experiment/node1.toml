@@ -20,7 +20,9 @@ address = ":4556"
 
 [[Listener]]
 type = "meshtastic"
-address = "sim"
+address = "0.0.0.0:5005"
+peer = "127.0.0.1:5006"
+peer_id = "dtn://node2/"
 
 [Cron]
 dispatch = "10s"

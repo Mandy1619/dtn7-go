@@ -128,13 +128,13 @@ func startDtnd(conf config) (startupErrors error) {
 			cla.GetManagerSingleton().Register(srv)
 		case cla.QUICL:
 			listener = quicl.NewQUICListener(lstConf.Address, lstConf.EndpointId, cla.GetManagerSingleton().NotifyReceive)
-		case cla.Meshtastic:  //added by Mandy
-    			srv := meshtastic.NewMeshtasticServer(lstConf.Address, lstConf.EndpointId, cla.GetManagerSingleton().NotifyReceive)
-    			listener = srv
-    			cla.GetManagerSingleton().Register(srv)
-				peerEID, _ := bpv7.NewEndpointID("dtn://node2/")  // TODO: read from config
-    			client := meshtastic.NewMeshtasticClient("127.0.0.1:5006", peerEID)
-    			cla.GetManagerSingleton().Register(client)
+		case cla.Meshtastic:
+    		srv := meshtastic.NewMeshtasticServer(lstConf.Address, lstConf.EndpointId, cla.GetManagerSingleton().NotifyReceive)
+    		listener = srv
+    		cla.GetManagerSingleton().Register(srv)
+    		peerEID, _ := bpv7.NewEndpointID(lstConf.PeerID)
+    		client := meshtastic.NewMeshtasticClient(lstConf.Peer, peerEID)
+    		cla.GetManagerSingleton().Register(client)
 		default:
 			err = NewStartupError(fmt.Sprintf("%v not valid convergence listener type", lstConf.Type), nil)
 			startupErrors = errors.Join(startupErrors, err)

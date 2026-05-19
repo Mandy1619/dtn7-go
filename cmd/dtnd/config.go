@@ -74,11 +74,15 @@ type ListenerConfig struct {
 	Type       cla.CLAType
 	Address    string
 	EndpointId bpv7.EndpointID
+	Peer       string
+	PeerID     string
 }
 
 type listenerTomlConfig struct {
 	Type    string
 	Address string
+	Peer    string
+	PeerID  string
 }
 
 // agentsConfig describes the ApplicationAgents/Agent-configuration block.
@@ -159,7 +163,7 @@ func parse(filename string) (config, error) {
 		if err != nil {
 			return config{}, NewConfigError("Error parsing Listener Type", err)
 		}
-		conf.Listener = append(conf.Listener, ListenerConfig{Type: claType, Address: listener.Address, EndpointId: nodeID})
+		conf.Listener = append(conf.Listener, ListenerConfig{Type: claType, Address: listener.Address, EndpointId: nodeID, Peer: listener.Peer, PeerID: listener.PeerID})
 		if claType !=cla.Meshtastic {
 			port, err := parseListenPort(listener.Address)
 			if err != nil {

@@ -35,25 +35,19 @@ func NewMeshtasticServer(address string, endpointID bpv7.EndpointID, receiveCall
 }
 
 func (s *MeshtasticServer) Start() error {
-	// "sim" means listen on 0.0.0.0:5006 (node2 receives on this port)
-	listenAddr := s.listenAddr
-	if listenAddr == "sim" {
-		listenAddr = "0.0.0.0:5006"
-	}
-
-	addr, err := net.ResolveUDPAddr("udp", listenAddr)
-	if err != nil {
-		return fmt.Errorf("meshtastic server: resolve %s: %w", listenAddr, err)
-	}
-	conn, err := net.ListenUDP("udp", addr)
-	if err != nil {
-		return fmt.Errorf("meshtastic server: listen %s: %w", listenAddr, err)
-	}
-	s.conn = conn
-	s.running = true
-	log.WithField("addr", listenAddr).Info("Meshtastic server listening (UDP sim)")
-	go s.receiveLoop()
-	return nil
+    addr, err := net.ResolveUDPAddr("udp", s.listenAddr)
+    if err != nil {
+        return fmt.Errorf("meshtastic server: resolve %s: %w", s.listenAddr, err)
+    }
+    conn, err := net.ListenUDP("udp", addr)
+    if err != nil {
+        return fmt.Errorf("meshtastic server: listen %s: %w", s.listenAddr, err)
+    }
+    s.conn = conn
+    s.running = true
+    log.WithField("addr", s.listenAddr).Info("Meshtastic server listening (UDP sim)")
+    go s.receiveLoop()
+    return nil
 }
 
 // reassemblyBuffer holds chunks for a bundle in progress

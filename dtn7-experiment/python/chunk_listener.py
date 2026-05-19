@@ -11,8 +11,9 @@ Usage: python3 chunk_listener.py
 
 import socket
 import struct
+import cbor2
 
-UDP_PORT    = 5006
+UDP_PORT    = 5005
 MAX_PACKET  = 200
 HEADER_SIZE = 8
 
@@ -64,7 +65,13 @@ def main():
                 full = b"".join(buffers[bid][i] for i in range(total))
                 print(f"\n  ✓ All {total} chunks received for bundle {bid:#010x}")
                 print(f"    Total payload: {len(full)} bytes")
-                print(f"    (CBOR decode will be added in Week 7-8)")
+                try:
+                    bundle = cbor2.loads(full)
+                    print(f"    CBOR decoded OK — type: {type(bundle)}")
+                    print(f"    Raw structure: {bundle}")
+                except Exception as e:
+                    print(f"    CBOR decode failed: {e}")
+                    print(f"    Raw bytes (hex): {full.hex()[:80]}...")
                 print()
                 del buffers[bid]
 
