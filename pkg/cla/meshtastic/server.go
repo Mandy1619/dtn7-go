@@ -6,6 +6,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"sync"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 
@@ -23,6 +25,8 @@ type MeshtasticServer struct {
 	running        bool
 	active         bool
 	stopCh         chan struct{}
+	reassembly      map[uint32]*reassemblyBuffer
+    mu              sync.Mutex 
 }
 
 func NewMeshtasticServer(address string, endpointID bpv7.EndpointID, receiveCallback func(*bpv7.Bundle)) *MeshtasticServer {
@@ -31,6 +35,7 @@ func NewMeshtasticServer(address string, endpointID bpv7.EndpointID, receiveCall
 		endpointID:      endpointID,
 		receiveCallback: receiveCallback,
 		stopCh:          make(chan struct{}),
+		reassembly:      make(map[uint32]*reassemblyBuffer),
 	}
 }
 
@@ -46,7 +51,34 @@ func (s *MeshtasticServer) Start() error {
     s.conn = conn
     s.running = true
     log.WithField("addr", s.listenAddr).Info("Meshtastic server listening (UDP sim)")
+
     go s.receiveLoop()
+
+    go func() {
+        ticker := time.NewTicker(15 * time.Second)
+        defer ticker.Stop()
+        for {
+            select {
+            case <-s.stopCh:
+                return
+            case <-ticker.C:
+                now := time.Now()
+                s.mu.Lock()
+                for id, rb := range s.reassembly {
+                    if now.Sub(rb.lastSeen) > 60*time.Second {
+                        log.WithFields(log.Fields{
+                            "bundle_id":    fmt.Sprintf("%#010x", id),
+                            "chunks_have":  len(rb.chunks),
+                            "chunks_total": rb.totalChunks,
+                        }).Warn("Meshtastic: incomplete bundle timed out — discarding")
+                        delete(s.reassembly, id)
+                    }
+                }
+                s.mu.Unlock()
+            }
+        }
+    }()
+
     return nil
 }
 
@@ -54,76 +86,76 @@ func (s *MeshtasticServer) Start() error {
 type reassemblyBuffer struct {
 	chunks      map[uint8][]byte
 	totalChunks uint8
+	lastSeen    time.Time // updated each time a new chunk arrives
 }
 
 func (s *MeshtasticServer) receiveLoop() {
-	buf := make([]byte, 200)
-	// bundle_id -> reassembly state
-	reassembly := make(map[uint32]*reassemblyBuffer)
+    buf := make([]byte, 200)
 
-	for {
-		select {
-		case <-s.stopCh:
-			return
-		default:
-		}
+    for {
+        select {
+        case <-s.stopCh:
+            return
+        default:
+        }
 
-		n, _, err := s.conn.ReadFromUDP(buf)
-		if err != nil {
-			if s.running {
-				log.WithError(err).Warn("Meshtastic server: UDP read error")
-			}
-			continue
-		}
+        n, _, err := s.conn.ReadFromUDP(buf)
+        if err != nil {
+            if s.running {
+                log.WithError(err).Warn("Meshtastic server: UDP read error")
+            }
+            continue
+        }
 
-		if n < headerSize {
-			log.Warnf("Meshtastic server: short packet (%d bytes), skipping", n)
-			continue
-		}
+        if n < headerSize {
+            log.Warnf("Meshtastic server: short packet (%d bytes), skipping", n)
+            continue
+        }
 
-		// Parse header
-		bundleID    := binary.BigEndian.Uint32(buf[0:4])
-		chunkIdx    := buf[4]
-		totalChunks := buf[5]
-		payloadLen  := binary.BigEndian.Uint16(buf[6:8])
+        bundleID    := binary.BigEndian.Uint32(buf[0:4])
+        chunkIdx    := buf[4]
+        totalChunks := buf[5]
+        payloadLen  := binary.BigEndian.Uint16(buf[6:8])
 
-		payload := make([]byte, payloadLen)
-		copy(payload, buf[headerSize:headerSize+payloadLen])
+        payload := make([]byte, payloadLen)
+        copy(payload, buf[headerSize:headerSize+int(payloadLen)])
 
-		log.WithFields(log.Fields{
-			"bundle_id": fmt.Sprintf("%#010x", bundleID),
-			"chunk":     fmt.Sprintf("%d/%d", chunkIdx+1, totalChunks),
-		}).Debug("Meshtastic server: received chunk")
+        log.WithFields(log.Fields{
+            "bundle_id": fmt.Sprintf("%#010x", bundleID),
+            "chunk":     fmt.Sprintf("%d/%d", chunkIdx+1, totalChunks),
+        }).Debug("Meshtastic server: received chunk")
 
-		// Store in reassembly buffer
-		if reassembly[bundleID] == nil {
-			reassembly[bundleID] = &reassemblyBuffer{
-				chunks:      make(map[uint8][]byte),
-				totalChunks: totalChunks,
-			}
-		}
-		reassembly[bundleID].chunks[chunkIdx] = payload
+        s.mu.Lock()
+        if s.reassembly[bundleID] == nil {
+            s.reassembly[bundleID] = &reassemblyBuffer{
+                chunks:      make(map[uint8][]byte),
+                totalChunks: totalChunks,
+            }
+        }
+        s.reassembly[bundleID].chunks[chunkIdx] = payload
+        s.reassembly[bundleID].lastSeen = time.Now()   // ← the lastSeen update
 
-		// Check if all chunks have arrived
-		rb := reassembly[bundleID]
-		if uint8(len(rb.chunks)) == rb.totalChunks {
-			// Reassemble in order
-			var full bytes.Buffer
-			for i := uint8(0); i < rb.totalChunks; i++ {
-				full.Write(rb.chunks[i])
-			}
-			delete(reassembly, bundleID)
+        rb := s.reassembly[bundleID]
+        complete := uint8(len(rb.chunks)) == rb.totalChunks
+        var full bytes.Buffer
+        if complete {
+            for i := uint8(0); i < rb.totalChunks; i++ {
+                full.Write(rb.chunks[i])
+            }
+            delete(s.reassembly, bundleID)
+        }
+        s.mu.Unlock()
 
-			// Decode CBOR back into a bundle
-			var bundle bpv7.Bundle
-			if err := bundle.UnmarshalCbor(&full); err != nil {
-				log.WithError(err).Errorf("Meshtastic server: CBOR decode failed for bundle %#010x", bundleID)
-				continue
-			}
-			log.WithField("bundle_id", bundle.ID().String()).Info("Meshtastic server: bundle reassembled, handing to DTN7")
-			s.receiveCallback(&bundle)
-		}
-	}
+        if complete {
+            var bundle bpv7.Bundle
+            if err := bundle.UnmarshalCbor(&full); err != nil {
+                log.WithError(err).Errorf("Meshtastic server: CBOR decode failed for bundle %#010x", bundleID)
+                continue
+            }
+            log.WithField("bundle_id", bundle.ID().String()).Info("Meshtastic server: bundle reassembled, handing to DTN7")
+            s.receiveCallback(&bundle)
+        }
+    }
 }
 
 func (s *MeshtasticServer) Close() error {
