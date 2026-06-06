@@ -21,7 +21,7 @@ type MeshtasticServer struct {
 	listenAddr     string // e.g. "0.0.0.0:5006" or "sim"
 	endpointID     bpv7.EndpointID
 	receiveCallback func(*bpv7.Bundle)
-	conn           *net.UDPConn
+	transport           Transport
 	running        bool
 	active         bool
 	stopCh         chan struct{}
@@ -29,7 +29,7 @@ type MeshtasticServer struct {
     mu              sync.Mutex 
 }
 
-func NewMeshtasticServer(address string, endpointID bpv7.EndpointID, receiveCallback func(*bpv7.Bundle)) *MeshtasticServer {
+func NewMeshtasticServer(transport Transport, endpointID bpv7.EndpointID, receiveCallback func(*bpv7.Bundle)) *MeshtasticServer {
 	return &MeshtasticServer{
 		listenAddr:      address,
 		endpointID:      endpointID,
@@ -99,7 +99,7 @@ func (s *MeshtasticServer) receiveLoop() {
         default:
         }
 
-        n, _, err := s.conn.ReadFromUDP(buf)
+        n, _, err := s.transport.ReceivePacket()
         if err != nil {
             if s.running {
                 log.WithError(err).Warn("Meshtastic server: UDP read error")

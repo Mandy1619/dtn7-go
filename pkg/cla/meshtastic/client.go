@@ -24,12 +24,12 @@ const (
 type MeshtasticClient struct {
 	peerAddress    string         // e.g. "127.0.0.1:5005"
 	peerEndpointID bpv7.EndpointID
-	conn           *net.UDPConn
+	transport      Transport
 	mu             sync.Mutex
 	active         bool
 }
 
-func NewMeshtasticClient(peerAddress string, peerEndpointID bpv7.EndpointID) *MeshtasticClient {
+func NewMeshtasticClient(transport Transport, peerEndpointID bpv7.EndpointID) *MeshtasticClient {
 	return &MeshtasticClient{
 		peerAddress:    peerAddress,
 		peerEndpointID: peerEndpointID,
@@ -92,7 +92,7 @@ func (c *MeshtasticClient) Send(bndl *bpv7.Bundle) error {
 		binary.BigEndian.PutUint16(header[6:8], uint16(len(payload)))
 
 		packet := append(header, payload...)
-		if _, err := c.conn.Write(packet); err != nil {
+		if _, err := c.transport.SendPacket(packet); err != nil {
 			return fmt.Errorf("meshtastic: chunk %d/%d write: %w", i+1, totalChunks, err)
 		}
 		log.WithFields(log.Fields{
