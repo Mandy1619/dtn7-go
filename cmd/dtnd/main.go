@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+	"strings"
 
 	"github.com/go-co-op/gocron/v2"
 	log "github.com/sirupsen/logrus"
@@ -129,12 +130,28 @@ func startDtnd(conf config) (startupErrors error) {
 		case cla.QUICL:
 			listener = quicl.NewQUICListener(lstConf.Address, lstConf.EndpointId, cla.GetManagerSingleton().NotifyReceive)
 		case cla.Meshtastic:
-    		srv := meshtastic.NewMeshtasticServer(lstConf.Address, lstConf.EndpointId, cla.GetManagerSingleton().NotifyReceive)
-    		listener = srv
-    		cla.GetManagerSingleton().Register(srv)
-    		peerEID, _ := bpv7.NewEndpointID(lstConf.PeerID)
-    		client := meshtastic.NewMeshtasticClient(lstConf.Peer, peerEID)
-    		cla.GetManagerSingleton().Register(client)
+			var transport meshtastic.Transport
+			var transportErr error
+
+			if strings.HasPrefix(lstConf.Address, "/") {
+				// Real hardware mode — address is a Unix socket path e.g. /tmp/mesh_node1.sock
+				transport, transportErr = meshtastic.NewMeshtasticTransport(lstConf.Address)
+			} else {
+				// UDP simulation mode — address is host:port e.g. 0.0.0.0:5005
+				transport, transportErr = meshtastic.NewUDPTransport(lstConf.Address, lstConf.Peer)
+			}
+			if transportErr != nil {
+				err = NewStartupError("Error creating Meshtastic transport", transportErr)
+				startupErrors = errors.Join(startupErrors, err)
+				continue
+			}
+
+			peerEID, _ := bpv7.NewEndpointID(lstConf.PeerID)
+			srv    := meshtastic.NewMeshtasticServer(transport, lstConf.EndpointId, cla.GetManagerSingleton().NotifyReceive)
+			client := meshtastic.NewMeshtasticClient(transport, peerEID)
+			listener = srv
+			cla.GetManagerSingleton().Register(srv)
+			cla.GetManagerSingleton().Register(client)
 		default:
 			err = NewStartupError(fmt.Sprintf("%v not valid convergence listener type", lstConf.Type), nil)
 			startupErrors = errors.Join(startupErrors, err)

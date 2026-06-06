@@ -40,5 +40,8 @@ func (t *MeshtasticTransport) ReceivePacket() ([]byte, error) {
 }
 
 func (t *MeshtasticTransport) Close() error {
+    if t.conn == nil {
+        return nil
+    }
     return t.conn.Close()
 }

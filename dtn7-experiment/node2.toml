@@ -18,10 +18,11 @@ socket = "/tmp/dtnd_node2.socket"
 type = "mtcp"
 address = ":4557"
 
+
+
 [[Listener]]
 type = "meshtastic"
-address = "0.0.0.0:5006"
-peer = "127.0.0.1:5005"
+address = "/tmp/mesh_node2.sock"
 peer_id = "dtn://node1/"
 
 [Cron]

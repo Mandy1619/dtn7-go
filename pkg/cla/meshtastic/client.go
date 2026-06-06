@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"net"
+	//"net"
 	"sync"
 
 	log "github.com/sirupsen/logrus"
@@ -31,24 +31,15 @@ type MeshtasticClient struct {
 
 func NewMeshtasticClient(transport Transport, peerEndpointID bpv7.EndpointID) *MeshtasticClient {
 	return &MeshtasticClient{
-		peerAddress:    peerAddress,
+		transport:    transport,
 		peerEndpointID: peerEndpointID,
 	}
 }
 
 func (c *MeshtasticClient) Activate() error {
-	addr, err := net.ResolveUDPAddr("udp", c.peerAddress)
-	if err != nil {
-		return fmt.Errorf("meshtastic client: resolve %s: %w", c.peerAddress, err)
-	}
-	conn, err := net.DialUDP("udp", nil, addr)
-	if err != nil {
-		return fmt.Errorf("meshtastic client: dial %s: %w", c.peerAddress, err)
-	}
-	c.conn = conn
 	c.active = true
-	log.WithField("peer", c.peerAddress).Info("Meshtastic client activated (UDP sim)")
-	return nil
+    log.Info("Meshtastic client activated")
+    return nil
 }
 
 func (c *MeshtasticClient) Send(bndl *bpv7.Bundle) error {
@@ -92,7 +83,7 @@ func (c *MeshtasticClient) Send(bndl *bpv7.Bundle) error {
 		binary.BigEndian.PutUint16(header[6:8], uint16(len(payload)))
 
 		packet := append(header, payload...)
-		if _, err := c.transport.SendPacket(packet); err != nil {
+		if err := c.transport.SendPacket(packet); err != nil {
 			return fmt.Errorf("meshtastic: chunk %d/%d write: %w", i+1, totalChunks, err)
 		}
 		log.WithFields(log.Fields{
@@ -110,11 +101,8 @@ func (c *MeshtasticClient) Address() string {
 	return fmt.Sprintf("meshtastic://%s", c.peerAddress)
 }
 func (c *MeshtasticClient) Close() error {
-	c.active = false
-	if c.conn != nil {
-		return c.conn.Close()
-	}
-	return nil
+    c.active = false
+    return c.transport.Close()
 }
 
 var _ cla.ConvergenceSender = (*MeshtasticClient)(nil)

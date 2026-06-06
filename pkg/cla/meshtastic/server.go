@@ -30,30 +30,19 @@ type MeshtasticServer struct {
 }
 
 func NewMeshtasticServer(transport Transport, endpointID bpv7.EndpointID, receiveCallback func(*bpv7.Bundle)) *MeshtasticServer {
-	return &MeshtasticServer{
-		listenAddr:      address,
-		endpointID:      endpointID,
-		receiveCallback: receiveCallback,
-		stopCh:          make(chan struct{}),
-		reassembly:      make(map[uint32]*reassemblyBuffer),
-	}
+    return &MeshtasticServer{
+        transport:       transport,
+        endpointID:      endpointID,
+        receiveCallback: receiveCallback,
+        stopCh:          make(chan struct{}),
+        reassembly:      make(map[uint32]*reassemblyBuffer),
+    }
 }
 
 func (s *MeshtasticServer) Start() error {
-    addr, err := net.ResolveUDPAddr("udp", s.listenAddr)
-    if err != nil {
-        return fmt.Errorf("meshtastic server: resolve %s: %w", s.listenAddr, err)
-    }
-    conn, err := net.ListenUDP("udp", addr)
-    if err != nil {
-        return fmt.Errorf("meshtastic server: listen %s: %w", s.listenAddr, err)
-    }
-    s.conn = conn
     s.running = true
-    log.WithField("addr", s.listenAddr).Info("Meshtastic server listening (UDP sim)")
-
+    log.Info("Meshtastic server starting")
     go s.receiveLoop()
-
     go func() {
         ticker := time.NewTicker(15 * time.Second)
         defer ticker.Stop()
@@ -90,7 +79,7 @@ type reassemblyBuffer struct {
 }
 
 func (s *MeshtasticServer) receiveLoop() {
-    buf := make([]byte, 200)
+    
 
     for {
         select {
@@ -99,7 +88,7 @@ func (s *MeshtasticServer) receiveLoop() {
         default:
         }
 
-        n, _, err := s.transport.ReceivePacket()
+        data, err := s.transport.ReceivePacket()
         if err != nil {
             if s.running {
                 log.WithError(err).Warn("Meshtastic server: UDP read error")
@@ -107,18 +96,18 @@ func (s *MeshtasticServer) receiveLoop() {
             continue
         }
 
-        if n < headerSize {
-            log.Warnf("Meshtastic server: short packet (%d bytes), skipping", n)
+        if data < headerSize {
+            log.Warnf("Meshtastic server: short packet (%d bytes), skipping", data)
             continue
         }
 
-        bundleID    := binary.BigEndian.Uint32(buf[0:4])
-        chunkIdx    := buf[4]
-        totalChunks := buf[5]
-        payloadLen  := binary.BigEndian.Uint16(buf[6:8])
+        bundleID    := binary.BigEndian.Uint32(data[0:4])
+        chunkIdx    := data[4]
+        totalChunks := data[5]
+        payloadLen  := binary.BigEndian.Uint16(data[6:8])
 
         payload := make([]byte, payloadLen)
-        copy(payload, buf[headerSize:headerSize+int(payloadLen)])
+        copy(payload, data[headerSize:headerSize+int(payloadLen)])
 
         log.WithFields(log.Fields{
             "bundle_id": fmt.Sprintf("%#010x", bundleID),
@@ -159,13 +148,10 @@ func (s *MeshtasticServer) receiveLoop() {
 }
 
 func (s *MeshtasticServer) Close() error {
-	s.running = false
-	s.active = false
-	close(s.stopCh)
-	if s.conn != nil {
-		return s.conn.Close()
-	}
-	return nil
+    s.running = false
+    s.active = false
+    close(s.stopCh)
+    return s.transport.Close()
 }
 
 func (s *MeshtasticServer) Running() bool                    { return s.running }
