@@ -4,6 +4,7 @@ import (
     "encoding/binary"
     "io"
     "net"
+    "time"
 )
 
 // MeshtasticTransport implements Transport by talking to the Python
@@ -13,10 +14,22 @@ type MeshtasticTransport struct {
 }
 
 func NewMeshtasticTransport(socketPath string) (*MeshtasticTransport, error) {
-    conn, err := net.Dial("unix", socketPath)
-    if err != nil {
-        return nil, err
+    var conn net.Conn
+    var err error
+
+    // Retry for up to 30 seconds — sidecar may still be initializing
+    for i := 0; i < 30; i++ {
+        conn, err = net.Dial("unix", socketPath)
+        if err == nil {
+            break
+        }
+        log.WithField("socket", socketPath).Info("Waiting for Meshtastic sidecar...")
+        time.Sleep(1 * time.Second)
     }
+    if err != nil {
+        return nil, fmt.Errorf("Error creating Meshtastic transport: %w", err)
+    }
+
     return &MeshtasticTransport{conn: conn}, nil
 }
 
