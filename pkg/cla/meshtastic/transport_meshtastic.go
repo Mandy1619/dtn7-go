@@ -6,7 +6,7 @@ import (
     "net"
     "time"
     "fmt"
-    "log"
+    log "github.com/sirupsen/logrus"
 )
 
 // MeshtasticTransport implements Transport by talking to the Python
