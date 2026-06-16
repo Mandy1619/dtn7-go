@@ -96,8 +96,8 @@ func (s *MeshtasticServer) receiveLoop() {
             continue
         }
 
-        if data < headerSize {
-            log.Warnf("Meshtastic server: short packet (%d bytes), skipping", data)
+        if len(data) < headerSize {
+            log.Warnf("Meshtastic server: short packet (%d bytes), skipping", len(data))
             continue
         }
 
