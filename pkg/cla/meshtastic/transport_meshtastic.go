@@ -6,7 +6,7 @@ import (
     "net"
     "time"
     "fmt"
-    "io"
+    "log"
 )
 
 // MeshtasticTransport implements Transport by talking to the Python
