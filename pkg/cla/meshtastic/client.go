@@ -14,18 +14,25 @@ import (
 	"github.com/dtn7/dtn7-go/pkg/cla"
 )
 
+//Chunk Header layout: 8 bytes total:
+//
+//4	bundle_id	- lower32 bits of the bundle's creation timestamp
+//1	chunk_idx	- which chunk this is (0-indexed)
+//1	total_chunks	- how many chunks this bundle was split into
+//2	payload_len	- how many data bytes follow the header
+
+//The header uses 8 bytes leaving 192 bytes for data
 const (
 	maxPayloadBytes = 192 // 200 byte LoRa MTU minus 8 byte header
 	headerSize      = 8
 )
 
-// MeshtasticClient sends bundles to a peer Meshtastic node via UDP simulation.
+// MeshtasticClient is the SENDING side of the Meshtastic CLA sends bundles to a peer Meshtastic node via UDP simulation.
 // Implements cla.ConvergenceSender.
 type MeshtasticClient struct {
-	peerAddress    string         // e.g. "127.0.0.1:5005"
-	peerEndpointID bpv7.EndpointID
-	transport      Transport
-	mu             sync.Mutex
+	peerEndpointID bpv7.EndpointID //DTN address of the node we are sending to
+	transport      Transport //send chunks (UDP or H/w)
+	mu             sync.Mutex //protects Send() from concurrent calls
 	active         bool
 }
 
@@ -36,14 +43,16 @@ func NewMeshtasticClient(transport Transport, peerEndpointID bpv7.EndpointID) *M
 	}
 }
 
+//Activate is called by the DTN7 Manager after registering this CLA. The Transport is already open, we just mark ourselves as active.
 func (c *MeshtasticClient) Activate() error {
 	c.active = true
     log.Info("Meshtastic client activated")
     return nil
 }
 
+//Send() is the imp part of this CLA
 func (c *MeshtasticClient) Send(bndl *bpv7.Bundle) error {
-	// 1. CBOR-marshal the bundle to bytes
+	// 1. Serialise the bundle into CBOR Bytes
 	var buf bytes.Buffer
 	if err := bndl.MarshalCbor(&buf); err != nil {
 		return fmt.Errorf("meshtastic: cbor marshal: %w", err)
@@ -51,6 +60,7 @@ func (c *MeshtasticClient) Send(bndl *bpv7.Bundle) error {
 	bundleBytes := buf.Bytes()
 
 	// 2. Derive a 4-byte bundle_id from the creation timestamp
+	//This lets the reciever know which chunks belong together
 	bundleID := uint32(bndl.ID().Timestamp[0] & 0xFFFFFFFF)
 
 	// 3. Split into 192-byte chunks
@@ -65,7 +75,7 @@ func (c *MeshtasticClient) Send(bndl *bpv7.Bundle) error {
 	}
 	totalChunks := len(chunks)
 
-	log.WithFields(log.Fields{
+	log.WithFields(log.Fields{    //visible in logs
 		"bundle_id":    fmt.Sprintf("%#010x", bundleID),
 		"total_chunks": totalChunks,
 		"total_bytes":  buf.Len(),
@@ -74,13 +84,14 @@ func (c *MeshtasticClient) Send(bndl *bpv7.Bundle) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// 4. Send each chunk over the already-open UDP connection from Activate()
+	// 4. Send each chunk over
 	for i, payload := range chunks {
+		//build 8-byte header
 		header := make([]byte, headerSize)
-		binary.BigEndian.PutUint32(header[0:4], bundleID)
-		header[4] = uint8(i)
-		header[5] = uint8(totalChunks)
-		binary.BigEndian.PutUint16(header[6:8], uint16(len(payload)))
+		binary.BigEndian.PutUint32(header[0:4], bundleID) //which bundle
+		header[4] = uint8(i) //chunk position
+		header[5] = uint8(totalChunks) //total count
+		binary.BigEndian.PutUint16(header[6:8], uint16(len(payload))) //data size
 
 		packet := append(header, payload...)
 		if err := c.transport.SendPacket(packet); err != nil {
@@ -90,19 +101,20 @@ func (c *MeshtasticClient) Send(bndl *bpv7.Bundle) error {
 			"chunk":     fmt.Sprintf("%d/%d", i+1, totalChunks),
 			"bundle_id": fmt.Sprintf("%#010x", bundleID),
 		}).Debug("Meshtastic client: sent chunk")
-		// TODO Week 9: time.Sleep(500 * time.Millisecond) when --duty-cycle flag is set
+		
 	}
 	return nil
 }
 
+// The following methods satisfy the cla.ConvergenceSender interface.
 func (c *MeshtasticClient) GetPeerEndpointID() bpv7.EndpointID { return c.peerEndpointID }
 func (c *MeshtasticClient) Active() bool                       { return c.active }
 func (c *MeshtasticClient) Address() string {
-	return fmt.Sprintf("meshtastic://%s", c.peerAddress)
+	return fmt.Sprintf("meshtastic://peer/%s", c.peerEndpointID)
 }
 func (c *MeshtasticClient) Close() error {
     c.active = false
     return c.transport.Close()
 }
 
-var _ cla.ConvergenceSender = (*MeshtasticClient)(nil)
+var _ cla.ConvergenceSender = (*MeshtasticClient)(nil) //Compile-time check - MeshtatsticClient must satisfy cla.ConvergenceSender. If not, the build fails with error message

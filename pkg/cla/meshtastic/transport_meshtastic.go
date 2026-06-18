@@ -9,12 +9,16 @@ import (
     log "github.com/sirupsen/logrus"
 )
 
-// MeshtasticTransport implements Transport by talking to the Python
-// meshtastic_bridge.py sidecar over a Unix domain socket.
+// MeshtasticTransport implements Transport by talking to the Python meshtastic_bridge.py over a Unix domain socket.
+
+//Why Python instead of pure go: The Meshtastic Python library has all the handling of device protocol, channel configuration, etc. Instead of reimplementing that in Go, this approach is used. The UNix socket adds near-zero latency compared to  LoRa airtime
+//Every packet is length-prefixed so the reader knows exactly how many bytes belong to each packet
+//Usage in node.toml: address = "/tmp/mesh_node1.sock" 
 type MeshtasticTransport struct {
     conn net.Conn
 }
 
+//NewMeshtasticTransport dials the UNix Socket. Retry: 30secs
 func NewMeshtasticTransport(socketPath string) (*MeshtasticTransport, error) {
     var conn net.Conn
     var err error
@@ -34,6 +38,7 @@ func NewMeshtasticTransport(socketPath string) (*MeshtasticTransport, error) {
 
     return &MeshtasticTransport{conn: conn}, nil
 }
+//SendPacket writes [2-byte length][data] to the UNix Socket. The meshtastic_bridge.py reads this and calls ifacesendData() over LoRa
 
 func (t *MeshtasticTransport) SendPacket(data []byte) error {
     hdr := make([]byte, 2)
@@ -42,6 +47,7 @@ func (t *MeshtasticTransport) SendPacket(data []byte) error {
     return err
 }
 
+//REcievePacket reads the 2-byte length prefix, then reads exactly that many bytes. Blocks until a packet arrives from the radio via the meshtastic_bridge.py
 func (t *MeshtasticTransport) ReceivePacket() ([]byte, error) {
     hdr := make([]byte, 2)
     if _, err := io.ReadFull(t.conn, hdr); err != nil {
