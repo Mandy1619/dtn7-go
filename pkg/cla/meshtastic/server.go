@@ -32,7 +32,7 @@ type MeshtasticServer struct {
 	running        bool
 	active         bool
 	stopCh         chan struct{}
-	reassembly      map[uint32]*reassemblyBuffer // reassembly holds in-flight bundles: bundle_id → buffer of chunks received so far. Using a map keyed by chunk_idx means out-of-order arrival is handled automatically.
+	reassembly      map[uint32]*reassemblyBuffer // reassembly holds in-flight bundles: bundle_id -> buffer of chunks received so far. Using a map keyed by chunk_idx means out-of-order arrival is handled automatically.
     mu              sync.Mutex // protects reassembly map (accessed by receive loop + timeout goroutine)
 }
 
@@ -135,7 +135,7 @@ func (s *MeshtasticServer) receiveLoop() {
             }
         }
         s.reassembly[bundleID].chunks[chunkIdx] = payload
-        s.reassembly[bundleID].lastSeen = time.Now()   // ← the lastSeen update
+        s.reassembly[bundleID].lastSeen = time.Now()   // <- the lastSeen update
 
         // Check if all chunks for this bundle have arrived
         rb := s.reassembly[bundleID]

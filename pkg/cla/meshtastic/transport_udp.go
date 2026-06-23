@@ -5,7 +5,12 @@ import "net"
 // UDPTransport implements Transport using localhost UDP datagrams. Why UDP for simulation? -  LoRa packets have same one packet = one datagramconcept. 
 // This is the simulation mode used to test chunking without hardware.
 
-//usage in node.toml: address = "0.0.0.0:5005" peer = "127.0.0.1:5006"
+// Usage in node.toml (simulation mode):
+//   [[Listener]]
+//   type    = "meshtastic"
+//   address = "0.0.0.0:5005"   ->  we listen on this port
+//   peer    = "127.0.0.1:5006" -> we send TO this port (node2's address)
+//   peer_id = "dtn://node2/"
 
 type UDPTransport struct {
     sendConn *net.UDPConn //connection we write chunks TO (the perr's port)

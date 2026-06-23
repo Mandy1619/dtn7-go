@@ -32,7 +32,7 @@ const (
 type MeshtasticClient struct {
 	peerEndpointID bpv7.EndpointID //DTN address of the node we are sending to
 	transport      Transport //send chunks (UDP or H/w)
-	mu             sync.Mutex //protects Send() from concurrent calls
+	mu             sync.Mutex //prevents two goroutines sending chunks at the same time
 	active         bool
 }
 
@@ -50,9 +50,11 @@ func (c *MeshtasticClient) Activate() error {
     return nil
 }
 
-//Send() is the imp part of this CLA
+//Send() is the imp part of this CLA. called by DTN7 whenever a bundle needs to be forwarded to the peer node.
+
+// Flow:      bundle -> CBOR bytes -> split into ≤192-byte chunks -> send each chunk
 func (c *MeshtasticClient) Send(bndl *bpv7.Bundle) error {
-	// 1. Serialise the bundle into CBOR Bytes
+	// 1. Serialise the bundle into CBOR Bytes (CBOR is the binary encoding format defined by the BPv7 standard)
 	var buf bytes.Buffer
 	if err := bndl.MarshalCbor(&buf); err != nil {
 		return fmt.Errorf("meshtastic: cbor marshal: %w", err)

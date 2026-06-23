@@ -3,6 +3,11 @@
 Registers on node2 and polls for incoming bundles every 2 seconds.
 Prints the decoded payload when a bundle arrives.
 
+HOW IT WORKS:
+  1. Register with dtnd on node2 to get a session UUID
+  2. Every 2 seconds, ask dtnd if any bundles have arrived for our endpoint
+  3. Print each new bundle's contents (decoded from base64)
+
 Usage: python3 poller.py
 """
 
@@ -16,7 +21,7 @@ ENDPOINT_ID = "dtn://node2/inbox"
 POLL_INTERVAL = 2  # seconds
 
 
-def register():
+def register(): #Register with dtnd and return our session UUID.
     resp = requests.post(
         f"{NODE2_REST}/rest/register",
         json={"endpoint_id": ENDPOINT_ID}
@@ -31,7 +36,7 @@ def register():
     return uuid
 
 
-def fetch(uuid):
+def fetch(uuid): #Ask dtnd for any bundles that have arrived since last fetch.
     resp = requests.post(
         f"{NODE2_REST}/rest/fetch",
         json={"uuid": uuid}
@@ -39,7 +44,7 @@ def fetch(uuid):
     return resp.json()
 
 
-def print_bundle(bundle):
+def print_bundle(bundle): #Pretty-print a bundle's metadata and decoded payload.
     primary = bundle.get("primaryBlock", {})
     payload = bundle.get("payloadBlock", {})
 
@@ -47,6 +52,7 @@ def print_bundle(bundle):
     dst = primary.get("destination", "unknown")
     ts  = primary.get("creationTimestamp", {}).get("date", "unknown")
 
+    # dtnd returns the payload as base64-encoded bytes
     raw_data = payload.get("data", "")
     try:
         decoded = base64.b64decode(raw_data).decode("utf-8")

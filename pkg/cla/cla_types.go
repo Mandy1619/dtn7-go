@@ -28,7 +28,7 @@ const (
 	// QUICL is the "QUIC Convergence Layer", as described in https://doi.org/10.1016/j.comcom.2025.108247
 	QUICL CLAType = 20
 	
-	//Added by Mandy
+	//Added by Mandy for Meshtastic
 	Meshtastic CLAType = 30
 
 	// Dummy CLA used for testing

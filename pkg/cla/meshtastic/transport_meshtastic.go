@@ -11,9 +11,15 @@ import (
 
 // MeshtasticTransport implements Transport by talking to the Python meshtastic_bridge.py over a Unix domain socket.
 
-//Why Python instead of pure go: The Meshtastic Python library has all the handling of device protocol, channel configuration, etc. Instead of reimplementing that in Go, this approach is used. The UNix socket adds near-zero latency compared to  LoRa airtime
+//Why Python instead of pure go: The Meshtastic Python library has all the handling of device protocol, channel configuration, etc. Instead of reimplementing that in Go, this approach is used. The UNix socket adds near-zero latency compared to  LoRa 
+
 //Every packet is length-prefixed so the reader knows exactly how many bytes belong to each packet
-//Usage in node.toml: address = "/tmp/mesh_node1.sock" 
+
+//Usage in node.toml: 
+//   [[Listener]]
+//   type    = "meshtastic"
+//   address = "/tmp/mesh_node1.sock"
+//   peer_id = "dtn://node2/" 
 type MeshtasticTransport struct {
     conn net.Conn
 }
@@ -38,6 +44,7 @@ func NewMeshtasticTransport(socketPath string) (*MeshtasticTransport, error) {
 
     return &MeshtasticTransport{conn: conn}, nil
 }
+
 //SendPacket writes [2-byte length][data] to the UNix Socket. The meshtastic_bridge.py reads this and calls ifacesendData() over LoRa
 
 func (t *MeshtasticTransport) SendPacket(data []byte) error {
