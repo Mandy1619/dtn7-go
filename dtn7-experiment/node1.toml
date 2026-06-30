@@ -14,9 +14,9 @@ address = "localhost:8081"
 [Agents.UNIX]
 socket = "/tmp/dtnd_node1.socket"
 
-[[Listener]]
-type = "mtcp"
-address = ":4556"
+#[[Listener]]
+#type = "mtcp"
+#address = ":4556"
 
 [[Listener]]
 type = "meshtastic"
@@ -27,6 +27,6 @@ peer_id = "dtn://node2/"
 dispatch = "10s"
 gc = "1h15s"
 
-[[Peer]]
-address = "mtcp://127.0.0.1:4557"
-node_id = "dtn://node2/"
+#[[Peer]]
+#address = "mtcp://127.0.0.1:4557"
+#node_id = "dtn://node2/"

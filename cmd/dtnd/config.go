@@ -82,7 +82,7 @@ type listenerTomlConfig struct {
 	Type    string
 	Address string 		
 	Peer    string		// Peer is the network address of the peer node. Used by UDPTransport (simulation mode) to know where to send chunks. Example: "127.0.0.1:5006"
-	PeerID  string		//PeerID is the DTN endpoint ID of the peer node. Used by the CLA to register the peer with DTN7's routing engine. Example: "dtn://node2/"
+	PeerID  string	`toml:"peer_id"`	//PeerID is the DTN endpoint ID of the peer node. Used by the CLA to register the peer with DTN7's routing engine. Example: "dtn://node2/"
 }
 
 // agentsConfig describes the ApplicationAgents/Agent-configuration block.

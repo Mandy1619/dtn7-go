@@ -146,12 +146,23 @@ func startDtnd(conf config) (startupErrors error) {
 				continue
 			}
 
-			peerEID, _ := bpv7.NewEndpointID(lstConf.PeerID)
+			peerEID, peerErr := bpv7.NewEndpointID(lstConf.PeerID)
+			if peerErr != nil {
+				log.WithFields(log.Fields{
+					"peer_id": lstConf.PeerID,
+					"error":   peerErr,
+				}).Error("Meshtastic: failed to parse peer_id from config")
+				err = NewStartupError("Error parsing Meshtastic peer_id", peerErr)
+				startupErrors = errors.Join(startupErrors, err)
+				continue
+			}
+			log.WithField("peer_id", peerEID).Info("Meshtastic: peer endpoint ID parsed")
 			srv    := meshtastic.NewMeshtasticServer(transport, lstConf.EndpointId, cla.GetManagerSingleton().NotifyReceive)
 			client := meshtastic.NewMeshtasticClient(transport, peerEID)
 			listener = srv
 			cla.GetManagerSingleton().Register(srv)
 			cla.GetManagerSingleton().Register(client)
+			cla.GetManagerSingleton().NotifyConnect(peerEID)
 		default:
 			err = NewStartupError(fmt.Sprintf("%v not valid convergence listener type", lstConf.Type), nil)
 			startupErrors = errors.Join(startupErrors, err)
